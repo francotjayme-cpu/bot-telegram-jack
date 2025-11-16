@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "<a href="https://imgur.com/fMLXHgl"><img src="https://i.imgur.com/fMLXHgl.jpg" title="source: imgur.com" /></a>")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/fMLXHgl.jpg")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
 # Google Drive Config
@@ -1034,3 +1034,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
