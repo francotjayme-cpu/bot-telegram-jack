@@ -989,7 +989,138 @@ def run_http_server():
     logger.info(f"HTTP Server: {port} ✅")
     server.serve_forever()
 
-# ==================== TAREAS AUTOMÁTICAS ====================
+# ==================== GOOGLE DRIVE - CONTENIDO DIARIO ====================
+
+def get_google_drive_images(folder_id):
+    """Obtiene lista de imágenes de carpeta pública de Google Drive"""
+    try:
+        # URL de la API de Google Drive para listar archivos
+        url = f"https://drive.google.com/drive/folders/{folder_id}"
+        
+        # Construir URLs directas de descarga
+        # Nota: Para carpetas públicas, necesitamos obtener los IDs de los archivos manualmente
+        # Por ahora usaremos una lista manual que actualizarás
+        
+        logger.info(f"Carpeta de Google Drive configurada: {folder_id}")
+        return []
+    except Exception as e:
+        logger.error(f"Error obteniendo imágenes de Drive: {e}")
+        return []
+
+def init_daily_content():
+    """Inicializa contenido diario en la base de datos"""
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    # Verificar si ya hay contenido
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        logger.info("⚠️ No hay contenido diario configurado.")
+        logger.info("📋 Para agregar contenido:")
+        logger.info("   1. Usa el comando /addcontent [URL] [caption] como admin")
+        logger.info("   2. O agrega manualmente las URLs de Google Drive")
+    
+    conn.close()
+
+async def send_daily_content(context: ContextTypes.DEFAULT_TYPE):
+    """Envía contenido diario a todos los usuarios"""
+    try:
+        conn = sqlite3.connect('bot_database.db')
+        cursor = conn.cursor()
+        
+        # Obtener contenido menos usado
+        cursor.execute('''
+            SELECT id, image_url, caption FROM daily_content 
+            ORDER BY sent_count ASC, last_sent ASC 
+            LIMIT 1
+        ''')
+        content = cursor.fetchone()
+        
+        if not content:
+            logger.warning("⚠️ No hay contenido diario disponible")
+            conn.close()
+            return
+        
+        content_id, image_url, caption = content
+        
+        # Obtener todos los usuarios activos
+        user_ids = get_all_user_ids()
+        
+        enviados = 0
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        for user_id in user_ids:
+            try:
+                await context.bot.send_photo(
+                    chat_id=user_id,
+                    photo=image_url,
+                    caption=caption,
+                    parse_mode='Markdown'
+                )
+                enviados += 1
+            except Exception as e:
+                logger.error(f"Error enviando a {user_id}: {e}")
+        
+        # Actualizar contador
+        cursor.execute('''
+            UPDATE daily_content 
+            SET sent_count = sent_count + 1, last_sent = ?
+            WHERE id = ?
+        ''', (now, content_id))
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Contenido diario enviado a {enviados} usuarios")
+        
+        # Notificar al admin
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=f"✅ *Contenido Diário Enviado*\n\n📊 Enviado para: {enviados} usuários\n🖼️ Foto: {content_id}",
+                parse_mode='Markdown'
+            )
+        except:
+            pass
+            
+    except Exception as e:
+        logger.error(f"Error en envío diario: {e}")
+
+async def schedule_daily_content(application):
+    """Programa el envío diario en horario aleatorio"""
+    while True:
+        try:
+            now = datetime.now()
+            
+            # Horario aleatorio entre 21:00 y 01:00 (GMT-3)
+            # Si es antes de las 21:00, programar para hoy
+            # Si es después de las 01:00, programar para el próximo día
+            
+            target_hour = random.choice(DAILY_CONTENT_HOURS)
+            target_time = now.replace(hour=target_hour, minute=random.randint(0, 59), second=0)
+            
+            # Si el horario ya pasó hoy, programar para mañana
+            if target_time < now:
+                target_time += timedelta(days=1)
+            
+            # Calcular segundos hasta el envío
+            seconds_until = (target_time - now).total_seconds()
+            
+            logger.info(f"⏰ Próximo envío diario: {target_time.strftime('%d/%m/%Y %H:%M')}")
+            
+            # Esperar hasta la hora programada
+            await asyncio.sleep(seconds_until)
+            
+            # Enviar contenido
+            await send_daily_content(application)
+            
+            # Esperar 1 hora antes de programar el siguiente
+            await asyncio.sleep(3600)
+            
+        except Exception as e:
+            logger.error(f"Error en programación diaria: {e}")
+            await asyncio.sleep(3600)
 async def scheduled_tasks(application):
     """Tareas programadas (funnel, contenido diario, etc)"""
     while True:
@@ -1034,4 +1165,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
