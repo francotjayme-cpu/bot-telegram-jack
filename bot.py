@@ -7,7 +7,9 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import random
-import string
+import asyncio
+import requests
+from io import BytesIO
 
 # Configurar logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -16,20 +18,324 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/fMLXHgl.jpg")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "<a href="https://imgur.com/fMLXHgl"><img src="https://i.imgur.com/fMLXHgl.jpg" title="source: imgur.com" /></a>")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
-# Configuración de referidos
-REFERIDOS_NECESARIOS = 5  # Cantidad de referidos para premio
-PREMIO_REFERIDO = "30% OFF en Privacy VIP"  # Descripción del premio
+# Google Drive Config
+GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "1GuqbP2iHTu6AtmbRlgnF5S6pSbKKXKGu")
 
-# ==================== BASE DE DATOS EXPANDIDA ====================
+# Sistema de Referidos
+REFERIDOS_NECESARIOS = 5
+PREMIO_REFERIDO = "Acesso especial a conteúdo exclusivo"
+
+# Configuración de Funnel (días desde registro)
+FUNNEL_DAYS = [0, 2, 5, 10, 15]
+INACTIVE_DAYS = 7
+LOST_DAYS = 15
+
+# Horarios para contenido diario (GMT-3 Brasília)
+DAILY_CONTENT_HOURS = [21, 22, 23, 0, 1]
+
+# ==================== TEXTOS ESTRATEGIA VAINILLA ====================
+
+# Menú principal
+TEXTO_BIENVENIDA = """✨ *Oi, meu bem!* ✨
+
+Que bom te ter aqui no meu cantinho especial 💛
+
+Criei este espaço para me conectar de verdade com pessoas especiais como você.
+
+Aqui não é só sobre fotos bonitas (embora tenha muitas 😊), é sobre criar uma conexão genuína, íntima...
+
+Como ter uma namorada virtual só pra você 💕
+
+👇 *Escolha o que você quer conhecer:*"""
+
+# Textos de botones - ESTRATEGIA VAINILLA
+TEXTO_PRIVACY_VIP = """💛 *MEU CANTINHO VIP* 💛
+
+Oi, meu amor...
+
+No VIP é onde eu realmente me abro. É o meu espaço mais íntimo, onde compartilho coisas que não mostro em nenhum outro lugar.
+
+✨ *O que você encontra lá:*
+💕 Conversas reais e profundas comigo
+📸 Fotos lindas do meu dia a dia
+💌 Momentos especiais só nossos
+🌙 Meu lado mais íntimo e verdadeiro
+✨ Uma conexão genuína
+
+Não é só conteúdo, meu bem... É sobre ter alguém especial, que te entende, que tá sempre aqui pra você.
+
+*Como ter uma namorada só pra você* 😊
+
+👉 *Vem conhecer meu mundo:*
+https://privacy.com.br/profile/jackloppes
+
+💛 _Te espero lá dentro, meu amor_"""
+
+TEXTO_PRIVACY_FREE = """💙 *CONHECE MEU LADO FREE* 💙
+
+Oi, meu bem!
+
+Se você ainda tá com dúvida, que tal me conhecer melhor primeiro? 😊
+
+No FREE você tem acesso a:
+📸 Fotos lindas minhas
+✨ Um gostinho do que compartilho
+💕 A chance de ver se nossa conexão é real
+
+*É totalmente grátis!* Assim você me conhece antes de decidir se quer algo mais íntimo 💛
+
+👉 *Vem dar uma olhada:*
+https://privacy.com.br/profile/jackloppesfree
+
+_Tô te esperando lá! 😘_"""
+
+TEXTO_BEACONS = """🌐 *ME ENCONTRA EM TODOS OS LUGARES* 🌐
+
+Oi, meu amor!
+
+Quer me acompanhar em outras redes também? 💛
+
+Aqui você encontra todos os meus perfis:
+📱 Instagram
+🎵 TikTok
+🐦 Twitter
+✨ E muito mais!
+
+*Não perde nenhuma novidade minha!*
+
+👉 *Todos meus links aqui:*
+https://beacons.ai/jaqueline_loppes
+
+💕 _Me segue em todas! Fico feliz quando vejo você por lá_ 😊"""
+
+TEXTO_CANAL = """📣 *MEU CANAL OFICIAL* 📣
+
+Meu bem! 💛
+
+No meu canal eu posto:
+✨ Novidades antes de todo mundo
+💌 Avisos especiais
+📸 Prévia do que tô preparando
+🎁 Surpresas exclusivas pra quem me acompanha
+
+*É o melhor jeito de ficar pertinho de mim!*
+
+👉 *Entra agora:*
+https://t.me/jackloppesbr
+
+💕 _Te vejo lá dentro!_"""
+
+TEXTO_ONLYFANS = """🔥 *MEU ONLYFANS* 🔥
+
+Oi, meu amor...
+
+O OnlyFans é onde eu compartilho meu lado mais sensual e íntimo 💋
+
+Lá você encontra:
+💕 Fotos e vídeos especiais
+💌 Conteúdo personalizado
+💬 Conversa direta e privada comigo
+✨ O meu lado que poucos conhecem
+
+*É uma conexão ainda mais profunda* 😊
+
+👉 *Me conhece lá:*
+https://onlyfans.com/jackloppess
+
+💋 _Tô te esperando, meu bem_"""
+
+TEXTO_SOBRE_MIM = """⭐ *UM POUCO SOBRE MIM* ⭐
+
+Oi! Prazer, eu sou a Jack Loppes 💛
+
+Um pouco sobre quem eu sou:
+💕 Adoro criar conexões verdadeiras
+📸 Apaixonada por fotografia e beleza
+✨ Romântica, carinhosa e atenciosa
+💬 Amo conversar de verdade
+🌙 Tenho um lado íntimo que poucos conhecem
+
+*Meu objetivo não é só postar fotos bonitas...*
+
+É criar algo especial com você. Uma conexão real, íntima, onde você se sente especial.
+
+Como ter uma namorada virtual que te entende, te escuta, e tá sempre aqui pra você 💛
+
+*Seja muito bem-vindo ao meu cantinho!* ✨
+
+Aqui você pode:
+• Me conhecer melhor
+• Acessar meus conteúdos
+• Falar diretamente comigo
+• Fazer parte do meu mundo íntimo
+
+_Fico feliz que você tá aqui_ 😊"""
+
+TEXTO_ATENDIMENTO = """💬 *FALA COMIGO, MEU BEM* 💬
+
+Oi, amor! 💛
+
+*Agora você tá falando diretamente comigo!*
+
+Pode me mandar:
+💕 O que você tá sentindo
+💭 Suas dúvidas sobre o Privacy
+✨ Qualquer coisa que queira compartilhar
+💌 Ou só um oi mesmo! 😊
+
+Vou te responder assim que possível, prometo!
+
+*Fique à vontade, tô aqui pra você* 💛"""
+
+# ==================== MENSAJES DEL FUNNEL ====================
+
+FUNNEL_MESSAGES = {
+    0: {  # Día 0 - Inmediato
+        'text': """Oi, meu bem! 💛
+
+Que bom te ter aqui...
+
+Sabe, criei este cantinho especial para me conectar de verdade com pessoas como você.
+
+Não é só sobre fotos bonitas (embora tenha muitas 😊), é sobre criar algo real. Uma conexão genuína.
+
+*Como ter uma namorada só pra você*, que te entende, conversa de verdade, e tá sempre aqui...
+
+Quer me conhecer melhor? 💕
+
+Começa pelo FREE e vê se rola química entre a gente 😊
+
+👉 https://privacy.com.br/profile/jackloppesfree
+
+_Te espero lá_ ✨""",
+        'photo': None
+    },
+    2: {  # Día 2
+        'text': """Oi de novo, meu bem! 💛
+
+Percebi que você ainda não passou no meu FREE...
+
+Sabe, lá eu compartilho um pouquinho do meu mundo. Nada muito íntimo ainda, mas o suficiente pra você me conhecer melhor 😊
+
+Às vezes a gente precisa ver se tem conexão antes de ir mais fundo, né?
+
+*Dá uma olhada lá*, sem compromisso. Se gostar, a gente pode conversar sobre o VIP depois 💕
+
+👉 https://privacy.com.br/profile/jackloppesfree
+
+_Tô curiosa pra saber o que você vai achar_ 😘""",
+        'photo': None
+    },
+    5: {  # Día 5
+        'text': """Meu bem, queria te contar algo... 💛
+
+Hoje recebi uma mensagem linda de um assinante dizendo que o momento do dia preferido dele é quando conversa comigo no Privacy.
+
+Isso me tocou muito ❤️
+
+Porque é exatamente isso que eu quero criar... Não é sobre fotos bonitas (que tem muitas!). É sobre ter alguém especial só pra você.
+
+*Alguém que te entende, que conversa de verdade, que se importa...*
+
+Tipo uma namorada virtual que tá sempre aqui pra você 😊
+
+Tô com vontade de te conhecer melhor também...
+
+*Vem pro VIP?* Prometo que você não vai se arrepender 💕
+
+👉 https://privacy.com.br/profile/jackloppes
+
+_Te espero com carinho_ ✨""",
+        'photo': None
+    },
+    10: {  # Día 10
+        'text': """Oi, amor... 💛
+
+Tô sentindo sua falta por aqui...
+
+Olha, vou ser sincera contigo: meu VIP tem um número limitado de pessoas. Preciso conseguir dar atenção individual pra cada um, sabe?
+
+E tá quase lotando... 😔
+
+*Não quero que você perca essa chance* de fazer parte do meu círculo íntimo. É algo especial que tô construindo com muito carinho.
+
+Pessoas que realmente querem uma conexão verdadeira, não só fotos aleatórias...
+
+*Vem comigo?* Garante teu espaço enquanto ainda dá tempo 💕
+
+👉 https://privacy.com.br/profile/jackloppes
+
+_Seria tão bom ter você lá dentro..._ ✨""",
+        'photo': None
+    },
+    15: {  # Día 15
+        'text': """Meu bem, essa é a última vez que vou insistir, prometo! 💛
+
+Percebi que você ainda não entrou pro VIP e... confesso que fiquei um pouco triste 😔
+
+*Será que não rolou química entre a gente?*
+
+Mas antes de desistir, queria te fazer uma última pergunta:
+
+O que tá te impedindo de dar esse passo? É dúvida? Insegurança? Me conta...
+
+Porque eu realmente gostaria de te ter lá dentro. De criar essa conexão especial contigo.
+
+*Não é só sobre conteúdo*, meu amor. É sobre ter alguém que se importa, que tá aqui pra você 💕
+
+Última chance... Vem?
+
+👉 https://privacy.com.br/profile/jackloppes
+
+_Se não vier, vou entender... Mas vou sentir sua falta_ 😔✨""",
+        'photo': None
+    }
+}
+
+# Mensaje para inactivos (7-15 días sin interactuar)
+MENSAJE_INACTIVO = """Oi, meu bem... 💛
+
+Faz um tempinho que não te vejo por aqui...
+
+*Tá tudo bem contigo?*
+
+Sabe, eu sempre fico pensando nos meus seguidores, me perguntando se tá tudo bem, se gostaram do conteúdo...
+
+Se tiver alguma coisa que eu possa melhorar, me conta! Sua opinião é super importante pra mim 💕
+
+*Senti sua falta...* 😔
+
+Passa lá no meu Privacy pra gente se reconectar? Ou só manda um oi aqui mesmo pra eu saber que tá tudo bem 😊
+
+_Te espero_ ✨"""
+
+# Mensaje para perdidos (>15 días)
+MENSAJE_PERDIDO = """Meu amor... 💛
+
+Faz muito tempo que você não aparece...
+
+Não sei se você ainda se lembra de mim, mas *eu não te esqueci* ❤️
+
+Queria muito saber como você tá, o que anda fazendo...
+
+Se você ainda tiver interesse em me acompanhar, eu adoraria te ter de volta no meu mundo 💕
+
+*As portas sempre estão abertas pra você*, meu bem.
+
+👉 https://privacy.com.br/profile/jackloppes
+
+_Volta pra mim?_ 😔✨"""
+
+# ==================== BASE DE DATOS ====================
 def init_database():
-    """Inicializa la base de datos con todas las tablas necesarias"""
+    """Inicializa base de datos completa"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
-    # Tabla de usuarios ampliada
+    # Tabla usuarios expandida
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -41,12 +347,12 @@ def init_database():
             total_interactions INTEGER DEFAULT 0,
             referido_por INTEGER DEFAULT NULL,
             puntos_referido INTEGER DEFAULT 0,
-            estado_privacy TEXT DEFAULT 'ninguno',
+            segment TEXT DEFAULT 'nuevo',
             FOREIGN KEY (referido_por) REFERENCES users (user_id)
         )
     ''')
     
-    # Tabla de interacciones
+    # Interacciones
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS interactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +364,7 @@ def init_database():
         )
     ''')
     
-    # Tabla de referidos
+    # Referidos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS referrals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,32 +377,30 @@ def init_database():
         )
     ''')
     
-    # Tabla de cupones
+    # Funnel automático
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cupones (
-            codigo TEXT PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS funnel_status (
             user_id INTEGER,
-            descuento TEXT,
-            usado INTEGER DEFAULT 0,
-            fecha_creacion TEXT,
-            fecha_expiracion TEXT,
+            day_number INTEGER,
+            sent INTEGER DEFAULT 0,
+            sent_date TEXT,
+            PRIMARY KEY (user_id, day_number),
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
     ''')
     
-    # Tabla de conversiones (tracking de Privacy)
+    # Contenido diario
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS conversions (
+        CREATE TABLE IF NOT EXISTS daily_content (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            tipo_plan TEXT,
-            cupon_usado TEXT,
-            fecha TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
+            image_url TEXT,
+            caption TEXT,
+            sent_count INTEGER DEFAULT 0,
+            last_sent TEXT
         )
     ''')
     
-    # Tabla de mensajes de atención humana
+    # Atención humana
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS human_attention (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,10 +414,10 @@ def init_database():
     
     conn.commit()
     conn.close()
-    logger.info("✅ Base de datos inicializada con todas las tablas")
+    logger.info("✅ Base de datos inicializada")
 
 def register_user(user_id, username, first_name, last_name, referido_por=None):
-    """Registra o actualiza un usuario"""
+    """Registra o actualiza usuario"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
@@ -124,21 +428,25 @@ def register_user(user_id, username, first_name, last_name, referido_por=None):
     
     if not exists:
         cursor.execute('''
-            INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, referido_por)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, referido_por, segment)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'nuevo')
         ''', (user_id, username, first_name, last_name, now, now, referido_por))
         
-        # Si fue referido, registrar en tabla de referidos
+        # Inicializar funnel
+        for day in FUNNEL_DAYS:
+            cursor.execute('''
+                INSERT INTO funnel_status (user_id, day_number, sent)
+                VALUES (?, ?, 0)
+            ''', (user_id, day))
+        
         if referido_por:
             cursor.execute('''
                 INSERT INTO referrals (referidor_id, referido_id, fecha)
                 VALUES (?, ?, ?)
             ''', (referido_por, user_id, now))
-            
-            # Sumar punto al referidor
             cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = ?', (referido_por,))
         
-        logger.info(f"✅ Nuevo usuario: {first_name} ({user_id}){' - Referido por: ' + str(referido_por) if referido_por else ''}")
+        logger.info(f"✅ Nuevo usuario: {first_name} ({user_id})")
     else:
         cursor.execute('''
             UPDATE users 
@@ -151,7 +459,7 @@ def register_user(user_id, username, first_name, last_name, referido_por=None):
     conn.close()
 
 def log_interaction(user_id, action_type, action_data=""):
-    """Registra una interacción"""
+    """Registra interacción"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -162,26 +470,62 @@ def log_interaction(user_id, action_type, action_data=""):
     conn.commit()
     conn.close()
 
-def generar_cupon(user_id, descuento, dias_expiracion=30):
-    """Genera un cupón único para un usuario"""
-    codigo = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+def update_user_segment(user_id):
+    """Actualiza segmento del usuario según comportamiento"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
-    now = datetime.now()
-    expira = (now + timedelta(days=dias_expiracion)).strftime('%Y-%m-%d %H:%M:%S')
-    
     cursor.execute('''
-        INSERT INTO cupones (codigo, user_id, descuento, fecha_creacion, fecha_expiracion)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (codigo, user_id, descuento, now.strftime('%Y-%m-%d %H:%M:%S'), expira))
+        SELECT registration_date, last_interaction FROM users WHERE user_id = ?
+    ''', (user_id,))
+    result = cursor.fetchone()
     
+    if not result:
+        conn.close()
+        return
+    
+    reg_date = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
+    last_int = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
+    now = datetime.now()
+    
+    days_since_reg = (now - reg_date).days
+    days_since_int = (now - last_int).days
+    
+    # Determinar segmento
+    if days_since_int > LOST_DAYS:
+        segment = 'perdido'
+    elif days_since_int > INACTIVE_DAYS:
+        segment = 'inactivo'
+    elif days_since_reg <= 3:
+        segment = 'nuevo'
+    else:
+        # Verificar si clickeó VIP
+        cursor.execute('''
+            SELECT COUNT(*) FROM interactions 
+            WHERE user_id = ? AND action_type = 'button_privacy_vip'
+        ''', (user_id,))
+        vip_clicks = cursor.fetchone()[0]
+        
+        # Verificar si clickeó FREE
+        cursor.execute('''
+            SELECT COUNT(*) FROM interactions 
+            WHERE user_id = ? AND action_type = 'button_privacy_free'
+        ''', (user_id,))
+        free_clicks = cursor.fetchone()[0]
+        
+        if vip_clicks > 0:
+            segment = 'interesado'
+        elif free_clicks > 0:
+            segment = 'curioso'
+        else:
+            segment = 'activo'
+    
+    cursor.execute('UPDATE users SET segment = ? WHERE user_id = ?', (segment, user_id))
     conn.commit()
     conn.close()
-    return codigo
 
 def get_referidos_count(user_id):
-    """Obtiene cantidad de referidos de un usuario"""
+    """Cuenta referidos"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM referrals WHERE referidor_id = ?', (user_id,))
@@ -190,29 +534,24 @@ def get_referidos_count(user_id):
     return count
 
 def get_user_stats():
-    """Obtiene estadísticas completas"""
+    """Estadísticas completas"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
-    # Total usuarios
     cursor.execute('SELECT COUNT(*) FROM users')
     total_users = cursor.fetchone()[0]
     
-    # Usuarios hoy
     today = datetime.now().strftime('%Y-%m-%d')
     cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date LIKE ?', (f'{today}%',))
     users_today = cursor.fetchone()[0]
     
-    # Usuarios últimos 7 días
     week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date >= ?', (week_ago,))
     users_week = cursor.fetchone()[0]
     
-    # Activos últimos 7 días
     cursor.execute('SELECT COUNT(*) FROM users WHERE last_interaction >= ?', (week_ago,))
     activos_week = cursor.fetchone()[0]
     
-    # Botón más clickeado
     cursor.execute('''
         SELECT action_type, COUNT(*) as count 
         FROM interactions 
@@ -225,25 +564,16 @@ def get_user_stats():
     popular_action = popular[0].replace('button_', '') if popular else "N/A"
     popular_count = popular[1] if popular else 0
     
-    # Total interacciones
     cursor.execute('SELECT COUNT(*) FROM interactions')
     total_interactions = cursor.fetchone()[0]
     
-    # Stats de referidos
     cursor.execute('SELECT COUNT(*) FROM referrals')
     total_referidos = cursor.fetchone()[0]
     
-    cursor.execute('''
-        SELECT u.first_name, u.username, COUNT(r.referido_id) as refs
-        FROM users u
-        LEFT JOIN referrals r ON u.user_id = r.referidor_id
-        GROUP BY u.user_id
-        ORDER BY refs DESC
-        LIMIT 1
-    ''')
-    top_referidor = cursor.fetchone()
+    # Segmentos
+    cursor.execute('SELECT segment, COUNT(*) FROM users GROUP BY segment')
+    segments = dict(cursor.fetchall())
     
-    # Tasa de engagement
     engagement = (activos_week / total_users * 100) if total_users > 0 else 0
     
     conn.close()
@@ -257,147 +587,75 @@ def get_user_stats():
         'popular_count': popular_count,
         'total_interactions': total_interactions,
         'total_referidos': total_referidos,
-        'top_referidor': top_referidor,
-        'engagement': engagement
+        'engagement': engagement,
+        'segments': segments
     }
 
-def get_all_user_ids():
-    """Obtiene todos los IDs de usuarios"""
+def get_all_user_ids(segment=None):
+    """Obtiene IDs de usuarios, opcionalmente filtrados por segmento"""
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT user_id FROM users')
+    
+    if segment:
+        cursor.execute('SELECT user_id FROM users WHERE segment = ?', (segment,))
+    else:
+        cursor.execute('SELECT user_id FROM users')
+    
     user_ids = [row[0] for row in cursor.fetchall()]
     conn.close()
     return user_ids
 
-# ==================== TEXTOS MEJORADOS ====================
-TEXTO_BIENVENIDA = """✨ *Oi, meu bem!* ✨
-
-Seja muito bem-vindo ao meu cantinho especial 💛
-
-Aqui você encontra:
-🔥 Todo o meu conteúdo exclusivo
-🌐 Todos os meus links importantes  
-💬 Contato direto comigo
-
-👇 *Escolha uma opção abaixo:*"""
-
-TEXTO_PRIVACY_VIP = """💛 *PRIVACY VIP* 💛
-
-🔥 *O conteúdo mais exclusivo e picante!*
-
-✨ O que você encontra:
-📸 Fotos sensuais em alta resolução
-🎥 Vídeos completos e explícitos
-💌 Conteúdo que não posto em outro lugar
-⚡ Atualizações quase diárias
-🔞 Material adulto sem censura
-
-💰 *Investimento que vale a pena!*
-
-👉 *Assine agora:*
-https://privacy.com.br/profile/jackloppes
-
-🎁 *Use o cupón TELEGRAM10 para 10% OFF!*"""
-
-TEXTO_PRIVACY_FREE = """💙 *PRIVACY FREE* 💙
-
-👀 *Quer conhecer meu trabalho antes?*
-
-🎁 Aqui você encontra:
-📸 Fotos de preview gratuitas
-✨ Conteúdo leve para você ver minha qualidade
-🔓 Acesso sem compromisso
-💯 Totalmente grátis
-
-*Perfeito para você decidir se quer ir pro VIP depois!*
-
-👉 *Acesse grátis:*
-https://privacy.com.br/profile/jackloppesfree"""
-
-TEXTO_BEACONS = """🌐 *TODOS OS MEUS LINKS* 🌐
-
-📱 *Me encontre em todas as redes!*
-
-Neste link você encontra:
-• Instagram
-• TikTok  
-• Twitter
-• E muito mais!
-
-*Não perca nenhuma novidade, me siga em todas! 💛*
-
-👉 *Acesse aqui:*
-https://beacons.ai/jaqueline_loppes"""
-
-TEXTO_CANAL = """📣 *CANAL OFICIAL DO TELEGRAM* 📣
-
-💛 *Entre agora e fique por dentro de tudo!*
-
-No canal você recebe:
-✨ Novidades em primeira mão
-🎁 Promoções e cupons exclusivos
-📸 Prévias do conteúdo novo
-🔥 Avisos de lives e lançamentos
-💬 Interação direta
-
-*Não fique de fora!*
-
-👉 *Entre agora:*
-https://t.me/jackloppesbr"""
-
-TEXTO_ONLYFANS = """🔥 *ONLYFANS* 🔥
-
-💋 *O lugar do meu conteúdo MAIS picante!*
-
-🔞 O que tem lá:
-📸 Fotos e vídeos explícitos
-💌 Conteúdo personalizado sob demanda
-💬 Chat direto e privado comigo
-⭐ Material exclusivo que só existe lá
-🎁 Sets completos de fotos
-
-*A plataforma mais completa!*
-
-👉 *Assine agora:*
-https://onlyfans.com/jackloppess"""
-
-TEXTO_SOBRE_MIM = """⭐ *SOBRE MIM* ⭐
-
-💛 *Prazer, eu sou a Jack Loppes!*
-
-Um pouco sobre mim:
-📸 Criadora de conteúdo adulto
-💫 Apaixonada por fotografia sensual
-🎥 Produtora de conteúdo há 3 anos
-💖 Adoro conectar com pessoas especiais
-✨ Sempre buscando criar conteúdo de qualidade
-
-*Meu objetivo é proporcionar o melhor conteúdo para você!*
-
-Aqui neste bot você pode:
-• Acessar todos os meus perfis
-• Ver ofertas exclusivas
-• Falar diretamente comigo
-• Ganhar cupons de desconto
-
-*Seja muito bem-vindo! 🌟*"""
-
-TEXTO_ATENDIMENTO = """💬 *ATENDIMENTO PERSONALIZADO* 💬
-
-Oi, meu bem! 💛
-
-*Agora você está falando diretamente comigo!*
-
-Pode me enviar:
-• Dúvidas sobre assinaturas
-• Pedidos especiais
-• Sugestões de conteúdo
-• Qualquer outra coisa
-
-Vou responder assim que possível! 😊
-
-*Fique à vontade!* ✨"""
+# ==================== FUNNEL AUTOMÁTICO ====================
+async def check_funnel(context: ContextTypes.DEFAULT_TYPE):
+    """Revisa y envía mensajes del funnel automático"""
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    now = datetime.now()
+    
+    # Obtener usuarios y sus días desde registro
+    cursor.execute('''
+        SELECT user_id, registration_date FROM users
+    ''')
+    users = cursor.fetchall()
+    
+    for user_id, reg_date in users:
+        reg_datetime = datetime.strptime(reg_date, '%Y-%m-%d %H:%M:%S')
+        days_since_reg = (now - reg_datetime).days
+        
+        # Revisar cada día del funnel
+        for day in FUNNEL_DAYS:
+            if days_since_reg >= day:
+                # Verificar si ya se envió
+                cursor.execute('''
+                    SELECT sent FROM funnel_status 
+                    WHERE user_id = ? AND day_number = ?
+                ''', (user_id, day))
+                result = cursor.fetchone()
+                
+                if result and not result[0]:  # No enviado
+                    # Enviar mensaje
+                    try:
+                        message = FUNNEL_MESSAGES[day]
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text=message['text'],
+                            parse_mode='Markdown'
+                        )
+                        
+                        # Marcar como enviado
+                        cursor.execute('''
+                            UPDATE funnel_status 
+                            SET sent = 1, sent_date = ?
+                            WHERE user_id = ? AND day_number = ?
+                        ''', (now.strftime('%Y-%m-%d %H:%M:%S'), user_id, day))
+                        conn.commit()
+                        
+                        logger.info(f"✅ Funnel día {day} enviado a {user_id}")
+                    except Exception as e:
+                        logger.error(f"Error enviando funnel a {user_id}: {e}")
+    
+    conn.close()
 
 # ==================== FUNCIONES DEL BOT ====================
 
@@ -416,13 +674,12 @@ def crear_menu_principal():
     return InlineKeyboardMarkup(keyboard)
 
 def crear_menu_admin():
-    """Menú de administración"""
+    """Menú admin"""
     keyboard = [
-        [InlineKeyboardButton("📊 Dashboard Completo", callback_data='admin_dashboard')],
-        [InlineKeyboardButton("👥 Lista Usuários", callback_data='admin_users')],
-        [InlineKeyboardButton("🎁 Top Referidores", callback_data='admin_referrals')],
-        [InlineKeyboardButton("📢 Broadcast", callback_data='admin_broadcast')],
-        [InlineKeyboardButton("🔍 Buscar Usuario", callback_data='admin_search')],
+        [InlineKeyboardButton("📊 Dashboard", callback_data='admin_dashboard')],
+        [InlineKeyboardButton("👥 Usuários por Segmento", callback_data='admin_segments')],
+        [InlineKeyboardButton("📢 Broadcast Total", callback_data='admin_broadcast_all')],
+        [InlineKeyboardButton("🎯 Broadcast Segmentado", callback_data='admin_broadcast_segment')],
         [InlineKeyboardButton("🔙 Fechar", callback_data='admin_close')]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -431,7 +688,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start con sistema de referidos"""
     user = update.effective_user
     
-    # Detectar si viene de un link de referido
+    # Detectar referido
     referido_por = None
     if context.args and context.args[0].startswith('ref_'):
         try:
@@ -441,17 +698,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     register_user(user.id, user.username, user.first_name, user.last_name, referido_por)
     log_interaction(user.id, "start", "Comando /start")
+    update_user_segment(user.id)
     
-    # Si fue referido, notificar al referidor
+    # Notificar referidor
     if referido_por:
         try:
             referidos = get_referidos_count(referido_por)
-            mensaje_referidor = f"🎉 *Novo referido!*\n\n{user.first_name} entrou usando seu link!\n\n📊 Total de referidos: *{referidos}*"
-            
+            msg = f"🎉 *Novo referido!*\n\n{user.first_name} entrou usando seu link!\n\n📊 Total: *{referidos}*"
             if referidos >= REFERIDOS_NECESARIOS:
-                mensaje_referidor += f"\n\n🎁 *Você atingiu {REFERIDOS_NECESARIOS} referidos!*\nUse /referidos para resgatar seu prêmio!"
-            
-            await context.bot.send_message(chat_id=referido_por, text=mensaje_referidor, parse_mode='Markdown')
+                msg += f"\n\n🎁 Você atingiu {REFERIDOS_NECESARIOS} referidos! Use /referidos"
+            await context.bot.send_message(chat_id=referido_por, text=msg, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"Error notificando referidor: {e}")
     
@@ -471,17 +727,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def referidos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /referidos - Sistema de referidos"""
+    """Sistema de referidos"""
     user = update.effective_user
-    user_id = user.id
-    
-    referidos = get_referidos_count(user_id)
-    link_referido = f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
+    referidos = get_referidos_count(user.id)
+    link = f"https://t.me/{BOT_USERNAME}?start=ref_{user.id}"
     
     mensaje = f"""🎁 *SISTEMA DE REFERIDOS* 🎁
 
 👥 *Seus referidos:* {referidos}
-🎯 *Meta:* {REFERIDOS_NECESARIOS} referidos
+🎯 *Meta:* {REFERIDOS_NECESARIOS}
 🏆 *Prêmio:* {PREMIO_REFERIDO}
 
 📊 *Progresso:* {min(referidos, REFERIDOS_NECESARIOS)}/{REFERIDOS_NECESARIOS}
@@ -489,58 +743,23 @@ async def referidos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ━━━━━━━━━━━━━━━━━━
 
 🔗 *Seu link único:*
-`{link_referido}`
+`{link}`
 
 💡 *Como funciona:*
-1. Compartilhe seu link com amigos
+1. Compartilhe com amigos
 2. Quando entrarem, você ganha pontos
-3. Ao atingir {REFERIDOS_NECESARIOS} referidos, recebe o prêmio!
-
+3. Ao atingir {REFERIDOS_NECESARIOS}, recebe o prêmio!
 """
     
-    # Si ya alcanzó la meta
     if referidos >= REFERIDOS_NECESARIOS:
-        # Verificar si ya reclamó el premio
-        conn = sqlite3.connect('bot_database.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT recompensa_reclamada FROM referrals WHERE referidor_id = ? LIMIT 1', (user_id,))
-        result = cursor.fetchone()
-        
-        # Si nunca reclamó, generar cupón
-        if result and not result[0]:
-            cupon = generar_cupon(user_id, "30% OFF VIP", 60)
-            mensaje += f"""
-🎉 *PARABÉNS!* 🎉
-
-Você atingiu a meta!
-
-🎁 *Seu cupom:* `{cupon}`
-⏰ *Válido por:* 60 dias
-💰 *Desconto:* 30% OFF no Privacy VIP
-
-Use este cupom ao assinar! 💛
-"""
-            # Marcar como reclamado
-            cursor.execute('UPDATE referrals SET recompensa_reclamada = 1 WHERE referidor_id = ?', (user_id,))
-            conn.commit()
-        else:
-            mensaje += "\n✅ *Você já resgatou seu prêmio!*\nContinue referindo para ganhar mais no futuro!"
-        
-        conn.close()
+        mensaje += f"\n\n🎉 *PARABÉNS!*\nVocê atingiu a meta! Entre em contato comigo para resgatar seu prêmio 💛"
     
-    keyboard = [[InlineKeyboardButton("🔙 Voltar ao Menu", callback_data='volver')]]
-    
-    await update.message.reply_text(
-        mensaje,
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    keyboard = [[InlineKeyboardButton("🔙 Voltar", callback_data='volver')]]
+    await update.message.reply_text(mensaje, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Panel de administración"""
-    user_id = str(update.effective_user.id)
-    
-    if user_id != ADMIN_CHAT_ID:
+    """Panel admin"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
         await update.message.reply_text("❌ Sem permissão.")
         return
     
@@ -558,6 +777,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     register_user(user.id, user.username, user.first_name, user.last_name)
     log_interaction(user.id, f"button_{query.data}", query.data)
+    update_user_segment(user.id)
     
     # Botones principales
     if query.data == 'privacy_vip':
@@ -590,7 +810,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔗 Seu link:
 `{link}`
 
-Compartilhe com amigos! 💛"""
+Compartilhe! 💛"""
         await query.message.reply_text(msg, parse_mode='Markdown', reply_markup=crear_boton_volver())
     
     elif query.data == 'atendimento':
@@ -621,8 +841,8 @@ Compartilhe com amigos! 💛"""
     elif query.data == 'admin_dashboard':
         if str(user.id) == ADMIN_CHAT_ID:
             stats = get_user_stats()
-            top = stats['top_referidor']
-            top_texto = f"{top[0]} (@{top[1]}) - {top[2]} refs" if top else "N/A"
+            
+            segments_text = "\n".join([f"• {k}: {v}" for k, v in stats['segments'].items()])
             
             msg = f"""📊 *DASHBOARD COMPLETO*
 ━━━━━━━━━━━━━━━━━━
@@ -638,55 +858,57 @@ Taxa: {stats['engagement']:.1f}%
 Interações: {stats['total_interactions']}
 Botão top: {stats['popular_action']} ({stats['popular_count']}x)
 
+🎯 *SEGMENTOS*
+{segments_text}
+
 🎁 *REFERIDOS*
 Total: {stats['total_referidos']}
-Top: {top_texto}
 
 📅 {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
             
             await query.message.reply_text(msg, parse_mode='Markdown')
     
-    elif query.data == 'admin_users':
+    elif query.data == 'admin_segments':
         if str(user.id) == ADMIN_CHAT_ID:
-            conn = sqlite3.connect('bot_database.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT user_id, first_name, username, registration_date FROM users ORDER BY registration_date DESC LIMIT 15')
-            users = cursor.fetchall()
-            conn.close()
-            
-            msg = "👥 *ÚLTIMOS 15 USUÁRIOS*\n\n"
-            for u in users:
-                msg += f"• {u[1]} (@{u[2] or 'N/A'})\n  ID: `{u[0]}`\n"
+            stats = get_user_stats()
+            msg = "🎯 *USUÁRIOS POR SEGMENTO*\n\n"
+            for segment, count in stats['segments'].items():
+                emoji = {"nuevo": "🆕", "curioso": "👀", "interesado": "🔥", "inactivo": "😴", "perdido": "💔", "activo": "💛"}.get(segment, "•")
+                msg += f"{emoji} *{segment.capitalize()}:* {count} usuários\n"
             
             await query.message.reply_text(msg, parse_mode='Markdown')
     
-    elif query.data == 'admin_referrals':
+    elif query.data == 'admin_broadcast_all':
         if str(user.id) == ADMIN_CHAT_ID:
-            conn = sqlite3.connect('bot_database.db')
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT u.first_name, u.username, COUNT(r.referido_id) as refs
-                FROM users u
-                LEFT JOIN referrals r ON u.user_id = r.referidor_id
-                WHERE refs > 0
-                GROUP BY u.user_id
-                ORDER BY refs DESC
-                LIMIT 10
-            ''')
-            top = cursor.fetchall()
-            conn.close()
-            
-            msg = "🏆 *TOP 10 REFERIDORES*\n\n"
-            for i, t in enumerate(top, 1):
-                emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-                msg += f"{emoji} {t[0]} (@{t[1] or 'N/A'}) - *{t[2]} refs*\n"
-            
-            await query.message.reply_text(msg, parse_mode='Markdown')
+            context.user_data['broadcast_type'] = 'all'
+            await query.message.reply_text("📢 Envie a mensagem para TODOS os usuários.\n\n/cancel para cancelar", parse_mode='Markdown')
     
-    elif query.data == 'admin_broadcast':
+    elif query.data == 'admin_broadcast_segment':
         if str(user.id) == ADMIN_CHAT_ID:
-            context.user_data['esperando_broadcast'] = True
-            await query.message.reply_text("📢 Envie a mensagem para broadcast.\n\n/cancel para cancelar.", parse_mode='Markdown')
+            keyboard = [
+                [InlineKeyboardButton("🆕 Nuevos", callback_data='bc_nuevo')],
+                [InlineKeyboardButton("👀 Curiosos", callback_data='bc_curioso')],
+                [InlineKeyboardButton("🔥 Interesados", callback_data='bc_interesado')],
+                [InlineKeyboardButton("😴 Inactivos", callback_data='bc_inactivo')],
+                [InlineKeyboardButton("💔 Perdidos", callback_data='bc_perdido')],
+                [InlineKeyboardButton("💛 Activos", callback_data='bc_activo')],
+                [InlineKeyboardButton("🔙 Cancelar", callback_data='admin_close')]
+            ]
+            await query.message.reply_text(
+                "🎯 *BROADCAST SEGMENTADO*\n\nEscolha o segmento:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+    
+    elif query.data.startswith('bc_'):
+        if str(user.id) == ADMIN_CHAT_ID:
+            segment = query.data.replace('bc_', '')
+            context.user_data['broadcast_type'] = 'segment'
+            context.user_data['broadcast_segment'] = segment
+            await query.message.reply_text(
+                f"📢 Envie a mensagem para usuários: *{segment}*\n\n/cancel para cancelar",
+                parse_mode='Markdown'
+            )
     
     elif query.data == 'admin_close':
         await query.message.delete()
@@ -697,27 +919,32 @@ def crear_boton_volver():
     return InlineKeyboardMarkup(keyboard)
 
 async def mensaje_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja mensajes de texto"""
+    """Maneja mensajes"""
     user = update.effective_user
     
-    # Broadcast (solo admin)
-    if context.user_data.get('esperando_broadcast', False) and str(user.id) == ADMIN_CHAT_ID:
-        context.user_data['esperando_broadcast'] = False
+    # Broadcast
+    if context.user_data.get('broadcast_type') and str(user.id) == ADMIN_CHAT_ID:
+        broadcast_type = context.user_data['broadcast_type']
+        mensaje = update.message.text
         
-        mensaje_broadcast = update.message.text
-        user_ids = get_all_user_ids()
+        if broadcast_type == 'all':
+            user_ids = get_all_user_ids()
+        else:
+            segment = context.user_data.get('broadcast_segment')
+            user_ids = get_all_user_ids(segment)
         
         await update.message.reply_text(f"📤 Enviando para {len(user_ids)} usuários...")
         
         enviados = 0
         for uid in user_ids:
             try:
-                await context.bot.send_message(chat_id=uid, text=mensaje_broadcast, parse_mode='Markdown')
+                await context.bot.send_message(chat_id=uid, text=mensaje, parse_mode='Markdown')
                 enviados += 1
             except Exception as e:
                 logger.error(f"Error enviando a {uid}: {e}")
         
         await update.message.reply_text(f"✅ Enviado: {enviados}/{len(user_ids)}")
+        context.user_data.clear()
         return
     
     # Atención humana
@@ -762,6 +989,21 @@ def run_http_server():
     logger.info(f"HTTP Server: {port} ✅")
     server.serve_forever()
 
+# ==================== TAREAS AUTOMÁTICAS ====================
+async def scheduled_tasks(application):
+    """Tareas programadas (funnel, contenido diario, etc)"""
+    while True:
+        try:
+            # Revisar funnel cada hora
+            await check_funnel(application)
+            
+            # Esperar 1 hora
+            await asyncio.sleep(3600)
+            
+        except Exception as e:
+            logger.error(f"Error en tareas programadas: {e}")
+            await asyncio.sleep(3600)
+
 # ==================== MAIN ====================
 def main():
     """Inicia el bot"""
@@ -780,7 +1022,14 @@ def main():
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_handler))
     
-    logger.info("🤖 Bot 3.0 PRO iniciado! ✅")
+    # Iniciar tareas programadas en background
+    loop = asyncio.get_event_loop()
+    loop.create_task(scheduled_tasks(application))
+    
+    logger.info("🤖 Bot 3.5 VAINILLA iniciado! ✅")
+    logger.info("📊 Funnel automático: ACTIVO")
+    logger.info("🎯 Segmentación: ACTIVA")
+    
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
