@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/fMLXHgl.jpg")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/fMLXHgl.jpeg")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
 # Google Drive Config
@@ -726,6 +726,194 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=crear_menu_principal()
         )
 
+async def add_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando para agregar contenido diario (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Uso: /addcontent [URL] [caption]\n\nEjemplo:\n/addcontent https://i.imgur.com/ABC123.jpg Boa noite, meu bem! 💛"
+        )
+        return
+    
+    url = context.args[0]
+    caption = " ".join(context.args[1:])
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO daily_content (image_url, caption, sent_count)
+        VALUES (?, ?, 0)
+    ''', (url, caption))
+    conn.commit()
+    
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    total = cursor.fetchone()[0]
+    conn.close()
+    
+    await update.message.reply_text(
+        f"✅ Conteúdo adicionado!\n\n📊 Total de fotos: {total}"
+    )
+
+async def list_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Lista todo el contenido diario (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, image_url, sent_count FROM daily_content ORDER BY id')
+    content = cursor.fetchall()
+    conn.close()
+    
+    if not content:
+        await update.message.reply_text("❌ Nenhum conteúdo cadastrado ainda.")
+        return
+    
+    msg = "📸 *CONTEÚDO DIÁRIO*\n\n"
+    for c in content:
+        msg += f"ID: {c[0]} | Enviado: {c[2]}x\n{c[1][:50]}...\n\n"
+    
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+async def delete_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Elimina contenido por ID (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    if not context.args:
+        await update.message.reply_text("❌ Uso: /delcontent [ID]")
+        return
+    
+    content_id = context.args[0]
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM daily_content WHERE id = ?', (content_id,))
+    conn.commit()
+    conn.close()
+    
+    await update.message.reply_text(f"✅ Conteúdo {content_id} deletado!")
+
+async def import_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Importa múltiples contenidos desde links de Imgur (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    # Lista de URLs de Imgur (páginas)
+    imgur_links = [
+        "https://imgur.com/3AxCFbG",
+        "https://imgur.com/AGGUucv",
+        "https://imgur.com/kDehpQz",
+        "https://imgur.com/MWKmOMx",
+        "https://imgur.com/8UHhOmQ",
+        "https://imgur.com/1KjDSid",
+        "https://imgur.com/8owZ93y",
+        "https://imgur.com/rsx7AJl",
+        "https://imgur.com/cQkJIpJ",
+        "https://imgur.com/ywWMQSp",
+        "https://imgur.com/eqRBflz",
+        "https://imgur.com/d1AGdQI",
+        "https://imgur.com/Wl3Fjhe",
+        "https://imgur.com/Zbp7n0I",
+        "https://imgur.com/K4P3z66",
+        "https://imgur.com/oGzpQp3",
+        "https://imgur.com/M5GY988",
+        "https://imgur.com/jv7gkTv",
+        "https://imgur.com/mJgMptQ",
+        "https://imgur.com/9yY7fV4",
+        "https://imgur.com/kASJnlQ",
+        "https://imgur.com/4wym9TO",
+        "https://imgur.com/gyT0svP",
+        "https://imgur.com/VwqFIxe",
+        "https://imgur.com/fZ2ZzR2",
+        "https://imgur.com/pFHokGg",
+        "https://imgur.com/pTPXEM3",
+        "https://imgur.com/j74eXQA",
+        "https://imgur.com/4XjIxJa"
+    ]
+    
+    # Captions variados en estrategia vainilla
+    captions = [
+        "Boa noite, meu bem! 💛\n\nEsse foi o look de hoje... Gostou?\n\nNo Privacy eu compartilho tudo sobre o meu dia, conversamos de verdade... Como ter uma namorada só pra você 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, amor! ✨\n\nTava pensando em você agora...\n\nNo VIP a gente conversa de verdade, eu conto tudo que acontece comigo, e você faz parte do meu dia a dia 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Meu bem... 💛\n\nAcordei pensando: será que você tá bem?\n\nÉ assim que funciona quando a gente cria uma conexão real, né? No Privacy somos bem mais próximos 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Boa noite! 🌙\n\nFotinho de hoje antes de dormir...\n\nNo VIP eu sempre compartilho esses momentos íntimos, como se fosse sua namorada te mandando foto antes de dormir 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, meu amor! 💛\n\nTô com saudade de conversar...\n\nNo Privacy a gente bate papo de verdade, eu respondo tudo, conto meus segredos... É uma conexão genuína 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Olá! ✨\n\nO que você achou dessa foto?\n\nNo VIP tem muito mais... E o melhor: você pode conversar comigo sobre tudo! Como ter alguém especial só pra você 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
+    ]
+    
+    await update.message.reply_text("📥 Importando conteúdo... Aguarde...")
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    importados = 0
+    
+    for link in imgur_links:
+        try:
+            # Converter link de página para URL directa
+            # https://imgur.com/ABC123 -> https://i.imgur.com/ABC123.jpg
+            image_id = link.split('/')[-1]
+            direct_url = f"https://i.imgur.com/{image_id}.jpg"
+            
+            # Elegir caption aleatorio
+            caption = random.choice(captions)
+            
+            # Insertar en BD
+            cursor.execute('''
+                INSERT INTO daily_content (image_url, caption, sent_count)
+                VALUES (?, ?, 0)
+            ''', (direct_url, caption))
+            
+            importados += 1
+            
+        except Exception as e:
+            logger.error(f"Error importando {link}: {e}")
+    
+    conn.commit()
+    
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    total = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    await update.message.reply_text(
+        f"✅ *Importação Completa!*\n\n📸 Importados: {importados}\n📊 Total no banco: {total}\n\n🎯 O envio diário automático já está ativo!",
+        parse_mode='Markdown'
+    )
+
+async def test_daily_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Prueba el envío diario (solo admin, solo a ti)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT image_url, caption FROM daily_content ORDER BY RANDOM() LIMIT 1')
+    content = cursor.fetchone()
+    conn.close()
+    
+    if not content:
+        await update.message.reply_text("❌ Nenhum conteúdo disponível")
+        return
+    
+    try:
+        await update.message.reply_photo(
+            photo=content[0],
+            caption=content[1],
+            parse_mode='Markdown'
+        )
+        await update.message.reply_text("✅ Teste OK! Assim será enviado para todos os usuários.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
+
 async def referidos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sistema de referidos"""
     user = update.effective_user
@@ -1123,6 +1311,9 @@ async def schedule_daily_content(application):
             await asyncio.sleep(3600)
 async def scheduled_tasks(application):
     """Tareas programadas (funnel, contenido diario, etc)"""
+    # Iniciar envío diario en paralelo
+    asyncio.create_task(schedule_daily_content(application))
+    
     while True:
         try:
             # Revisar funnel cada hora
@@ -1139,6 +1330,7 @@ async def scheduled_tasks(application):
 def main():
     """Inicia el bot"""
     init_database()
+    init_daily_content()
     
     # Servidor HTTP
     http_thread = Thread(target=run_http_server, daemon=True)
@@ -1150,6 +1342,11 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("referidos", referidos_command))
     application.add_handler(CommandHandler("admin", admin_panel))
+    application.add_handler(CommandHandler("addcontent", add_content_command))
+    application.add_handler(CommandHandler("importcontent", import_content_command))
+    application.add_handler(CommandHandler("listcontent", list_content_command))
+    application.add_handler(CommandHandler("delcontent", delete_content_command))
+    application.add_handler(CommandHandler("testdaily", test_daily_command))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_handler))
     
@@ -1160,6 +1357,7 @@ def main():
     logger.info("🤖 Bot 3.5 VAINILLA iniciado! ✅")
     logger.info("📊 Funnel automático: ACTIVO")
     logger.info("🎯 Segmentación: ACTIVA")
+    logger.info("📸 Contenido diario: ACTIVO")
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
