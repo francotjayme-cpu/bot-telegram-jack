@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/fMLXHgl.jpeg")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.ibb.co/FkMGsT6x/exemplar-9-16-1762315998802.png")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
 # Google Drive Config
-GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "1GuqbP2iHTu6AtmbRlgnF5S6pSbKKXKGu")
+GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "TU_ID_CARPETA_AQUI")
 
 # Sistema de Referidos
 REFERIDOS_NECESARIOS = 5
@@ -796,6 +796,151 @@ async def delete_content_command(update: Update, context: ContextTypes.DEFAULT_T
     
     await update.message.reply_text(f"✅ Conteúdo {content_id} deletado!")
 
+async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Importa contenido desde ImgBB (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    # Links de ImgBB (páginas)
+    imgbb_links = [
+        "https://ibb.co/hR8xsB8Q",
+        "https://ibb.co/mVMNYZyk",
+        "https://ibb.co/3yFcV7j4",
+        "https://ibb.co/bw2zzYz",
+        "https://ibb.co/tPvjPBNF",
+        "https://ibb.co/SDSZvRgk",
+        "https://ibb.co/7dm7sZf8",
+        "https://ibb.co/wkjtJSz",
+        "https://ibb.co/LDJxTd0N",
+        "https://ibb.co/35jxr92r",
+        "https://ibb.co/5x94HHFZ",
+        "https://ibb.co/zHLsN6rx",
+        "https://ibb.co/5X6SxMWG",
+        "https://ibb.co/bRQ6cJ0K",
+        "https://ibb.co/DfMJZGx4",
+        "https://ibb.co/cXx4NTrj",
+        "https://ibb.co/wNJ8VMMd",
+        "https://ibb.co/YFmKP5w4",
+        "https://ibb.co/FrLMGw6",
+        "https://ibb.co/JjYhP1N4",
+        "https://ibb.co/XxPYh7rf",
+        "https://ibb.co/4wFsXj1w",
+        "https://ibb.co/ZpQ01sdB",
+        "https://ibb.co/mVbRFWkW",
+        "https://ibb.co/JRqQ4mTd",
+        "https://ibb.co/hxgvwCQr",
+        "https://ibb.co/Wp2zQmSr",
+        "https://ibb.co/SDC4PLGm",
+        "https://ibb.co/5Xh5hm8F",
+        "https://ibb.co/DgPLwqPT",
+        "https://ibb.co/3mTwVBBY",
+        "https://ibb.co/HDt6NnzV"
+    ]
+    
+    # Captions variados
+    captions = [
+        "Boa noite, meu bem! 💛\n\nEsse foi o look de hoje... Gostou?\n\nNo Privacy eu compartilho tudo sobre o meu dia, conversamos de verdade... Como ter uma namorada só pra você 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, amor! ✨\n\nTava pensando em você agora...\n\nNo VIP a gente conversa de verdade, eu conto tudo que acontece comigo, e você faz parte do meu dia a dia 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Meu bem... 💛\n\nAcordei pensando: será que você tá bem?\n\nÉ assim que funciona quando a gente cria uma conexão real, né? No Privacy somos bem mais próximos 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Boa noite! 🌙\n\nFotinho de hoje antes de dormir...\n\nNo VIP eu sempre compartilho esses momentos íntimos, como se fosse sua namorada te mandando foto antes de dormir 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, meu amor! 💛\n\nTô com saudade de conversar...\n\nNo Privacy a gente bate papo de verdade, eu respondo tudo, conto meus segredos... É uma conexão genuína 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Olá! ✨\n\nO que você achou dessa foto?\n\nNo VIP tem muito mais... E o melhor: você pode conversar comigo sobre tudo! Como ter alguém especial só pra você 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Meu amor... 💛\n\nMomento relax do dia...\n\nNo Privacy você faz parte de todos os meus momentos, dos mais especiais aos mais simples. É uma intimidade real 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi! 🌟\n\nFoto fresquinha de agora...\n\nNo VIP eu compartilho tudo em primeira mão, você sempre vê primeiro! Como ter acesso exclusivo ao meu mundo 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
+    ]
+    
+    await update.message.reply_text("📥 Importando de ImgBB... Isso pode demorar um pouco...")
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    importados = 0
+    erros = 0
+    
+    for link in imgbb_links:
+        try:
+            # Obtener la página de ImgBB
+            response = requests.get(link, timeout=10)
+            
+            if response.status_code == 200:
+                # Buscar la URL directa en el HTML
+                html = response.text
+                
+                # ImgBB usa un patrón específico para las URLs directas
+                import re
+                
+                # Buscar el meta tag og:image que contiene la URL directa
+                match = re.search(r'<meta property="og:image" content="([^"]+)"', html)
+                
+                if match:
+                    direct_url = match.group(1)
+                    
+                    # Elegir caption aleatorio
+                    caption = random.choice(captions)
+                    
+                    # Insertar en BD
+                    cursor.execute('''
+                        INSERT INTO daily_content (image_url, caption, sent_count)
+                        VALUES (?, ?, 0)
+                    ''', (direct_url, caption))
+                    
+                    importados += 1
+                    logger.info(f"✅ Importado: {direct_url}")
+                else:
+                    erros += 1
+                    logger.error(f"❌ No se encontró URL directa en: {link}")
+            else:
+                erros += 1
+                logger.error(f"❌ Error HTTP {response.status_code}: {link}")
+                
+        except Exception as e:
+            erros += 1
+            logger.error(f"❌ Error procesando {link}: {e}")
+    
+    conn.commit()
+    
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    total = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    await update.message.reply_text(
+        f"✅ *Importação Completa!*\n\n"
+        f"📸 Importados: {importados}\n"
+        f"❌ Erros: {erros}\n"
+        f"📊 Total no banco: {total}\n\n"
+        f"🎯 O envio diário automático já está ativo!",
+        parse_mode='Markdown'
+    )
+
+async def delete_all_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Elimina TODO el contenido diario (solo admin)"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    conn = sqlite3.connect('bot_database.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    count = cursor.fetchone()[0]
+    
+    cursor.execute('DELETE FROM daily_content')
+    conn.commit()
+    conn.close()
+    
+    await update.message.reply_text(
+        f"🗑️ *Conteúdo Deletado*\n\n"
+        f"Foram removidas {count} fotos do banco de dados.",
+        parse_mode='Markdown'
+    )
+
 async def import_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Importa múltiples contenidos desde links de Imgur (solo admin)"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
@@ -858,10 +1003,22 @@ async def import_content_command(update: Update, context: ContextTypes.DEFAULT_T
     
     for link in imgur_links:
         try:
-            # Converter link de página para URL directa
-            # https://imgur.com/ABC123 -> https://i.imgur.com/ABC123.jpg
+            # Convertir link de página para URL directa
+            # Probar con .jpg y .png para compatibilidad regional
             image_id = link.split('/')[-1]
+            
+            # Intentar primero con .jpg, si falla usar .png
             direct_url = f"https://i.imgur.com/{image_id}.jpg"
+            
+            # Verificar si la imagen es accesible
+            try:
+                response = requests.head(direct_url, timeout=5)
+                if response.status_code != 200:
+                    # Intentar con .png
+                    direct_url = f"https://i.imgur.com/{image_id}.png"
+            except:
+                # Si falla, intentar con .png
+                direct_url = f"https://i.imgur.com/{image_id}.png"
             
             # Elegir caption aleatorio
             caption = random.choice(captions)
@@ -1344,8 +1501,10 @@ def main():
     application.add_handler(CommandHandler("admin", admin_panel))
     application.add_handler(CommandHandler("addcontent", add_content_command))
     application.add_handler(CommandHandler("importcontent", import_content_command))
+    application.add_handler(CommandHandler("importimgbb", import_imgbb_command))
     application.add_handler(CommandHandler("listcontent", list_content_command))
     application.add_handler(CommandHandler("delcontent", delete_content_command))
+    application.add_handler(CommandHandler("delcontentall", delete_all_content_command))
     application.add_handler(CommandHandler("testdaily", test_daily_command))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_handler))
