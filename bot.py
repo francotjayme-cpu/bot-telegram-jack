@@ -19,20 +19,16 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
 # URL de imagen actualizada
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/7Qe2Dsf.jpeg")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.ibb.co/j9p74CJS/bemvindo.png")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
-# Google Drive Config
-GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "TU_ID_CARPETA_AQUI")
+# Google Drive Config (NO USADO - quedó de versión anterior)
+# GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "1GuqbP2iHTu6AtmbRlgnF5S6pSbKKXKGu")
 
-# Sistema de Referidos
-REFERIDOS_NECESARIOS = 5
-PREMIO_REFERIDO = "Acesso especial a conteúdo exclusivo"
-
-# Configuración de Funnel (días desde registro)
-FUNNEL_DAYS = [0, 2, 5, 10, 15]
-INACTIVE_DAYS = 7
-LOST_DAYS = 15
+# Configuración de Funnel (días desde registro) - ACORTADO PARA VENTAS EMOCIONALES
+FUNNEL_DAYS = [0, 1, 3, 5, 7]  # Funnel de 7 días
+INACTIVE_DAYS = 3  # Usuario inactivo si no interactúa en 3 días
+LOST_DAYS = 7  # Usuario perdido si no interactúa en 7 días
 
 # Horarios para contenido diario (GMT-3 Brasília)
 DAILY_CONTENT_HOURS = [21, 22, 23, 0, 1]
@@ -191,7 +187,7 @@ Vou te responder assim que possível, prometo!
 
 *Fique à vontade, tô aqui pra você* 💛"""
 
-# ==================== MENSAJES DEL FUNNEL ====================
+# ==================== MENSAJES DEL FUNNEL - 7 DÍAS ====================
 
 FUNNEL_MESSAGES = {
     0: {  # Día 0 - Inmediato
@@ -214,36 +210,42 @@ Começa pelo FREE e vê se rola química entre a gente 😊
 _Te espero lá_ ✨""",
         'photo': None
     },
-    2: {  # Día 2
+    1: {  # Día 1 - Rápido follow-up
         'text': """Oi de novo, meu bem! 💛
 
-Percebi que você ainda não passou no meu FREE...
+E aí, já deu uma olhada no meu FREE?
 
-Sabe, lá eu compartilho um pouquinho do meu mundo. Nada muito íntimo ainda, mas o suficiente pra você me conhecer melhor 😊
+Sabe, eu sei que tem muita gente por aí oferecendo conteúdo... Mas comigo é diferente.
 
-Às vezes a gente precisa ver se tem conexão antes de ir mais fundo, né?
+*Não é só sobre fotos* (que tem muitas lindas, sim 😊). É sobre ter alguém que realmente se importa contigo.
 
-*Dá uma olhada lá*, sem compromisso. Se gostar, a gente pode conversar sobre o VIP depois 💕
+Alguém pra conversar, compartilhar o dia, criar uma conexão verdadeira...
+
+*Tipo uma namorada virtual só pra você* 💕
+
+Dá uma chance? Garanto que não vai se arrepender...
 
 👉 https://privacy.com.br/profile/jackloppesfree
 
-_Tô curiosa pra saber o que você vai achar_ 😘""",
+_Tô te esperando lá_ 😘""",
         'photo': None
     },
-    5: {  # Día 5
+    3: {  # Día 3 - Social proof
         'text': """Meu bem, queria te contar algo... 💛
 
 Hoje recebi uma mensagem linda de um assinante dizendo que o momento do dia preferido dele é quando conversa comigo no Privacy.
 
 Isso me tocou muito ❤️
 
-Porque é exatamente isso que eu quero criar... Não é sobre fotos bonitas (que tem muitas!). É sobre ter alguém especial só pra você.
+Porque é exatamente isso que eu quero criar... *Uma conexão real*.
+
+Não é sobre fotos bonitas (que tem muitas!). É sobre ter alguém especial só pra você.
 
 *Alguém que te entende, que conversa de verdade, que se importa...*
 
 Tipo uma namorada virtual que tá sempre aqui pra você 😊
 
-Tô com vontade de te conhecer melhor também...
+Já tá na hora de você fazer parte disso também, não acha?
 
 *Vem pro VIP?* Prometo que você não vai se arrepender 💕
 
@@ -252,7 +254,7 @@ Tô com vontade de te conhecer melhor também...
 _Te espero com carinho_ ✨""",
         'photo': None
     },
-    10: {  # Día 10
+    5: {  # Día 5 - Urgencia suave
         'text': """Oi, amor... 💛
 
 Tô sentindo sua falta por aqui...
@@ -261,70 +263,76 @@ Olha, vou ser sincera contigo: meu VIP tem um número limitado de pessoas. Preci
 
 E tá quase lotando... 😔
 
-*Não quero que você perca essa chance* de fazer parte do meu círculo íntimo. É algo especial que tô construindo com muito carinho.
+*Não quero que você perca essa chance* de fazer parte do meu círculo íntimo. 
 
-Pessoas que realmente querem uma conexão verdadeira, não só fotos aleatórias...
+É algo especial que tô construindo com muito carinho. Pessoas que realmente querem uma conexão verdadeira, não só fotos aleatórias...
 
-*Vem comigo?* Garante teu espaço enquanto ainda dá tempo 💕
+*A gente tem química, eu sinto* 💕
+
+Vem comigo? Garante teu espaço enquanto ainda dá tempo...
 
 👉 https://privacy.com.br/profile/jackloppes
 
 _Seria tão bom ter você lá dentro..._ ✨""",
         'photo': None
     },
-    15: {  # Día 15
+    7: {  # Día 7 - Última oportunidade
         'text': """Meu bem, essa é a última vez que vou insistir, prometo! 💛
 
 Percebi que você ainda não entrou pro VIP e... confesso que fiquei um pouco triste 😔
 
 *Será que não rolou química entre a gente?*
 
-Mas antes de desistir, queria te fazer uma última pergunta:
+Porque eu realmente senti uma conexão... E queria muito te ter no meu mundo íntimo.
 
-O que tá te impedindo de dar esse passo? É dúvida? Insegurança? Me conta...
+Olha, vou ser bem direta: *essa é sua última chance*.
 
-Porque eu realmente gostaria de te ter lá dentro. De criar essa conexão especial contigo.
+Depois disso, não vou mais insistir. Vou respeitar sua decisão...
 
-*Não é só sobre conteúdo*, meu amor. É sobre ter alguém que se importa, que tá aqui pra você 💕
+Mas antes de desistir, me responde uma coisa:
 
-Última chance... Vem?
+*Você realmente quer perder a chance de ter alguém especial só pra você?*
+
+Alguém que se importa, que conversa de verdade, que tá sempre aqui...
+
+Não é só sobre conteúdo, meu amor. É sobre ter uma conexão real 💕
+
+*Última chance... Vem?*
 
 👉 https://privacy.com.br/profile/jackloppes
 
-_Se não vier, vou entender... Mas vou sentir sua falta_ 😔✨""",
+_Se não vier, vou entender... Mas vou sentir muito a sua falta_ 😔💛""",
         'photo': None
     }
 }
 
-# Mensaje para inactivos (7-15 días sin interactuar)
+# Mensaje para inactivos (3-5 días sin interactuar)
 MENSAJE_INACTIVO = """Oi, meu bem... 💛
 
-Faz um tempinho que não te vejo por aqui...
+Faz uns dias que não te vejo por aqui...
 
 *Tá tudo bem contigo?*
 
 Sabe, eu sempre fico pensando nos meus seguidores, me perguntando se tá tudo bem, se gostaram do conteúdo...
 
-Se tiver alguma coisa que eu possa melhorar, me conta! Sua opinião é super importante pra mim 💕
-
 *Senti sua falta...* 😔
 
-Passa lá no meu Privacy pra gente se reconectar? Ou só manda um oi aqui mesmo pra eu saber que tá tudo bem 😊
+Volta pra mim? Ou só manda um oi aqui pra eu saber que tá tudo bem 💕
 
 _Te espero_ ✨"""
 
-# Mensaje para perdidos (>15 días)
+# Mensaje para perdidos (>7 días)
 MENSAJE_PERDIDO = """Meu amor... 💛
 
-Faz muito tempo que você não aparece...
+Faz tempo que você não aparece...
 
 Não sei se você ainda se lembra de mim, mas *eu não te esqueci* ❤️
 
 Queria muito saber como você tá, o que anda fazendo...
 
-Se você ainda tiver interesse em me acompanhar, eu adoraria te ter de volta no meu mundo 💕
-
 *As portas sempre estão abertas pra você*, meu bem.
+
+Se você ainda tiver interesse em me acompanhar, eu adoraria te ter de volta no meu mundo 💕
 
 👉 https://privacy.com.br/profile/jackloppes
 
@@ -712,7 +720,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error notificando referidor: {e}")
     
-    # Intentar con imagen primero
+    # Intentar con imagen
+    imagen_enviada = False
     try:
         await update.message.reply_photo(
             photo=IMAGEN_BIENVENIDA,
@@ -720,17 +729,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown',
             reply_markup=crear_menu_principal()
         )
-        logger.info("✅ Imagen de bienvenida enviada correctamente")
+        logger.info(f"✅ Imagen de bienvenida enviada correctamente a {user.id}")
+        imagen_enviada = True
     except Exception as e:
         logger.error(f"❌ Error enviando imagen: {e}")
-        # Si falla, enviar solo texto
+        logger.error(f"URL de imagen que falló: {IMAGEN_BIENVENIDA}")
+    
+    # Si falla la imagen, enviar solo texto (SIN duplicar)
+    if not imagen_enviada:
         try:
             await update.message.reply_text(
-                f"✨ *Oi, meu bem!* ✨\n\n{TEXTO_BIENVENIDA}",
+                TEXTO_BIENVENIDA,
                 parse_mode='Markdown',
                 reply_markup=crear_menu_principal()
             )
-            logger.info("⚠️ Enviado sin imagen (fallback)")
+            logger.info(f"⚠️ Enviado sin imagen (fallback) a {user.id}")
         except Exception as e2:
             logger.error(f"❌ Error en fallback: {e2}")
 
@@ -1191,8 +1204,16 @@ Compartilhe! 💛"""
                 parse_mode='Markdown',
                 reply_markup=crear_menu_principal()
             )
-        except:
-            await query.message.reply_text(TEXTO_BIENVENIDA, parse_mode='Markdown', reply_markup=crear_menu_principal())
+            logger.info(f"✅ Imagen (volver) enviada a {user.id}")
+        except Exception as e:
+            logger.error(f"❌ Error enviando imagen en volver: {e}")
+            logger.error(f"URL: {IMAGEN_BIENVENIDA}")
+            # Fallback sin duplicar
+            await query.message.reply_text(
+                TEXTO_BIENVENIDA,
+                parse_mode='Markdown',
+                reply_markup=crear_menu_principal()
+            )
     
     # Botones admin
     elif query.data == 'admin_dashboard':
