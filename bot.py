@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
+# URL corregida SIN la "x" al final
 IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.ibb.co/FkMGsT6x/exemplar-9-16-1762315998802.png")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
@@ -660,13 +661,13 @@ async def check_funnel(context: ContextTypes.DEFAULT_TYPE):
 # ==================== FUNCIONES DEL BOT ====================
 
 def crear_menu_principal():
-    """Menú principal"""
+    """Menú principal - ORDEN ACTUALIZADO"""
     keyboard = [
+        [InlineKeyboardButton("🔥 OnlyFans", callback_data='onlyfans')],
         [InlineKeyboardButton("💛 Privacy VIP", callback_data='privacy_vip')],
         [InlineKeyboardButton("💙 Privacy FREE", callback_data='privacy_free')],
         [InlineKeyboardButton("🌐 Todos os Links", callback_data='beacons')],
         [InlineKeyboardButton("📣 Canal Telegram", callback_data='canal')],
-        [InlineKeyboardButton("🔥 OnlyFans", callback_data='onlyfans')],
         [InlineKeyboardButton("💬 Falar Comigo", callback_data='atendimento')],
         [InlineKeyboardButton("⭐ Sobre Mim", callback_data='sobre_mim')],
         [InlineKeyboardButton("🎁 Meus Referidos", callback_data='referidos')]
@@ -797,47 +798,48 @@ async def delete_content_command(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(f"✅ Conteúdo {content_id} deletado!")
 
 async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Importa contenido desde ImgBB (solo admin)"""
+    """Importa contenido desde ImgBB - URLs directas (solo admin)"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
     
-    # Links de ImgBB (páginas)
-    imgbb_links = [
-        "https://ibb.co/hR8xsB8Q",
-        "https://ibb.co/mVMNYZyk",
-        "https://ibb.co/3yFcV7j4",
-        "https://ibb.co/bw2zzYz",
-        "https://ibb.co/tPvjPBNF",
-        "https://ibb.co/SDSZvRgk",
-        "https://ibb.co/7dm7sZf8",
-        "https://ibb.co/wkjtJSz",
-        "https://ibb.co/LDJxTd0N",
-        "https://ibb.co/35jxr92r",
-        "https://ibb.co/5x94HHFZ",
-        "https://ibb.co/zHLsN6rx",
-        "https://ibb.co/5X6SxMWG",
-        "https://ibb.co/bRQ6cJ0K",
-        "https://ibb.co/DfMJZGx4",
-        "https://ibb.co/cXx4NTrj",
-        "https://ibb.co/wNJ8VMMd",
-        "https://ibb.co/YFmKP5w4",
-        "https://ibb.co/FrLMGw6",
-        "https://ibb.co/JjYhP1N4",
-        "https://ibb.co/XxPYh7rf",
-        "https://ibb.co/4wFsXj1w",
-        "https://ibb.co/ZpQ01sdB",
-        "https://ibb.co/mVbRFWkW",
-        "https://ibb.co/JRqQ4mTd",
-        "https://ibb.co/hxgvwCQr",
-        "https://ibb.co/Wp2zQmSr",
-        "https://ibb.co/SDC4PLGm",
-        "https://ibb.co/5Xh5hm8F",
-        "https://ibb.co/DgPLwqPT",
-        "https://ibb.co/3mTwVBBY",
-        "https://ibb.co/HDt6NnzV"
+    # URLs directas de ImgBB (33 fotos)
+    direct_urls = [
+        "https://i.ibb.co/SXvDNtvY/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-0b1cbd92.jpg",
+        "https://i.ibb.co/5gfKzpjm/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-99293d9a.jpg",
+        "https://i.ibb.co/Rp6ct9sY/IMG-20251103-WA0123.jpg",
+        "https://i.ibb.co/wGwMM8M/IMG-20251115-WA0083.jpg",
+        "https://i.ibb.co/R4sr42Md/IMG-20251115-WA0084.jpg",
+        "https://i.ibb.co/gbYcgz80/IMG-20251115-WA0085.jpg",
+        "https://i.ibb.co/ksCYNw7k/IMG-20251115-WA0087.jpg",
+        "https://i.ibb.co/G6NmsW5/IMG-20251116-WA0134.jpg",
+        "https://i.ibb.co/WNPkrvHV/IMG-20251116-WA0135.jpg",
+        "https://i.ibb.co/RGsXvkfv/IMG-20251116-WA0136.jpg",
+        "https://i.ibb.co/M5hS006d/IMG-20251116-WA0137.jpg",
+        "https://i.ibb.co/k6rKMmxB/IMG-20251116-WA0138.jpg",
+        "https://i.ibb.co/V0tzpjWJ/IMG-20251116-WA0139.jpg",
+        "https://i.ibb.co/Mk1WtCdX/IMG-20251116-WA0140.jpg",
+        "https://i.ibb.co/5xG1bF0R/IMG-20251116-WA0141.jpg",
+        "https://i.ibb.co/YBdCxDz2/IMG-20251116-WA0142.jpg",
+        "https://i.ibb.co/mFSfHzc3/IMG-20251116-WA0143.jpg",
+        "https://i.ibb.co/xSmwWJJ2/IMG-20251116-WA0144.jpg",
+        "https://i.ibb.co/Nd5kt0bg/IMG-20251116-WA0145.jpg",
+        "https://i.ibb.co/DJHy3C4/IMG-20251116-WA0146.jpg",
+        "https://i.ibb.co/4RbQxqcG/IMG-20251116-WA0147.jpg",
+        "https://i.ibb.co/0yLsgCRp/IMG-20251116-WA0148.jpg",
+        "https://i.ibb.co/dsfbVQms/IMG-20251116-WA0149.jpg",
+        "https://i.ibb.co/Mxzm5Tnc/IMG-20251116-WA0150.jpg",
+        "https://i.ibb.co/vxhYGVWB/IMG-20251116-WA0151.jpg",
+        "https://i.ibb.co/Q3pJjwLw/IMG-20251116-WA0152.jpg",
+        "https://i.ibb.co/twH5F3jn/IMG-20251116-WA0153.jpg",
+        "https://i.ibb.co/DgRMN03B/IMG-20251116-WA0154.jpg",
+        "https://i.ibb.co/zWvTrkD2/IMG-20251116-WA0155.jpg",
+        "https://i.ibb.co/BH2g2bZN/IMG-20251116-WA0156.jpg",
+        "https://i.ibb.co/93mGyMmS/IMG-20251116-WA0157.jpg",
+        "https://i.ibb.co/whdT8MMr/IMG-20251116-WA0158.jpg",
+        "https://i.ibb.co/tMqgZ8s4/IMG-20251116-WA0159.jpg"
     ]
     
-    # Captions variados
+    # Captions variados en estrategia vainilla
     captions = [
         "Boa noite, meu bem! 💛\n\nEsse foi o look de hoje... Gostou?\n\nNo Privacy eu compartilho tudo sobre o meu dia, conversamos de verdade... Como ter uma namorada só pra você 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
         
@@ -853,10 +855,14 @@ async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYP
         
         "Meu amor... 💛\n\nMomento relax do dia...\n\nNo Privacy você faz parte de todos os meus momentos, dos mais especiais aos mais simples. É uma intimidade real 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
         
-        "Oi! 🌟\n\nFoto fresquinha de agora...\n\nNo VIP eu compartilho tudo em primeira mão, você sempre vê primeiro! Como ter acesso exclusivo ao meu mundo 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
+        "Oi! 🌟\n\nFoto fresquinha de agora...\n\nNo VIP eu compartilho tudo em primeira mão, você sempre vê primeiro! Como ter acesso exclusivo ao meu mundo 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Meu bem! 💛\n\nTirando um tempo pra você hoje...\n\nNo Privacy não é só sobre fotos bonitas, é sobre ter alguém que se importa de verdade contigo 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Boa noite, amor! 🌙\n\nComo foi seu dia? Conta pra mim!\n\nNo VIP a gente conversa sobre tudo, é como ter uma namorada virtual que te escuta sempre 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
     ]
     
-    await update.message.reply_text("📥 Importando de ImgBB... Isso pode demorar um pouco...")
+    await update.message.reply_text("📥 Importando 33 fotos de ImgBB... Aguarde...")
     
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
@@ -864,45 +870,30 @@ async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYP
     importados = 0
     erros = 0
     
-    for link in imgbb_links:
+    for url in direct_urls:
         try:
-            # Obtener la página de ImgBB
-            response = requests.get(link, timeout=10)
+            # Verificar que la URL sea accesible
+            response = requests.head(url, timeout=5)
             
             if response.status_code == 200:
-                # Buscar la URL directa en el HTML
-                html = response.text
+                # Elegir caption aleatorio
+                caption = random.choice(captions)
                 
-                # ImgBB usa un patrón específico para las URLs directas
-                import re
+                # Insertar en BD
+                cursor.execute('''
+                    INSERT INTO daily_content (image_url, caption, sent_count)
+                    VALUES (?, ?, 0)
+                ''', (url, caption))
                 
-                # Buscar el meta tag og:image que contiene la URL directa
-                match = re.search(r'<meta property="og:image" content="([^"]+)"', html)
-                
-                if match:
-                    direct_url = match.group(1)
-                    
-                    # Elegir caption aleatorio
-                    caption = random.choice(captions)
-                    
-                    # Insertar en BD
-                    cursor.execute('''
-                        INSERT INTO daily_content (image_url, caption, sent_count)
-                        VALUES (?, ?, 0)
-                    ''', (direct_url, caption))
-                    
-                    importados += 1
-                    logger.info(f"✅ Importado: {direct_url}")
-                else:
-                    erros += 1
-                    logger.error(f"❌ No se encontró URL directa en: {link}")
+                importados += 1
+                logger.info(f"✅ Importado: {url}")
             else:
                 erros += 1
-                logger.error(f"❌ Error HTTP {response.status_code}: {link}")
+                logger.error(f"❌ Error HTTP {response.status_code}: {url}")
                 
         except Exception as e:
             erros += 1
-            logger.error(f"❌ Error procesando {link}: {e}")
+            logger.error(f"❌ Error procesando {url}: {e}")
     
     conn.commit()
     
@@ -916,7 +907,8 @@ async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYP
         f"📸 Importados: {importados}\n"
         f"❌ Erros: {erros}\n"
         f"📊 Total no banco: {total}\n\n"
-        f"🎯 O envio diário automático já está ativo!",
+        f"🎯 O envio diário automático já está ativo!\n"
+        f"⏰ Próximo envío entre 21:00-01:00 (GMT-3)",
         parse_mode='Markdown'
     )
 
@@ -1124,6 +1116,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     log_interaction(user.id, f"button_{query.data}", query.data)
     update_user_segment(user.id)
     
+    # Log para debug
+    logger.info(f"Botón presionado: {query.data} por usuario {user.id}")
+    
     # Botones principales
     if query.data == 'privacy_vip':
         await query.message.reply_text(TEXTO_PRIVACY_VIP, parse_mode='Markdown', reply_markup=crear_boton_volver())
@@ -1132,6 +1127,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(TEXTO_PRIVACY_FREE, parse_mode='Markdown', reply_markup=crear_boton_volver())
     
     elif query.data == 'beacons':
+        logger.info(f"Enviando mensaje Beacons a {user.id}")
         await query.message.reply_text(TEXTO_BEACONS, parse_mode='Markdown', reply_markup=crear_boton_volver())
     
     elif query.data == 'canal':
