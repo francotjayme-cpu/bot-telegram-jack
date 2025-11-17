@@ -959,93 +959,12 @@ async def import_content_command(update: Update, context: ContextTypes.DEFAULT_T
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
     
-    # Lista de URLs de Imgur (páginas)
-    imgur_links = [
-        "https://imgur.com/3AxCFbG",
-        "https://imgur.com/AGGUucv",
-        "https://imgur.com/kDehpQz",
-        "https://imgur.com/MWKmOMx",
-        "https://imgur.com/8UHhOmQ",
-        "https://imgur.com/1KjDSid",
-        "https://imgur.com/8owZ93y",
-        "https://imgur.com/rsx7AJl",
-        "https://imgur.com/cQkJIpJ",
-        "https://imgur.com/ywWMQSp",
-        "https://imgur.com/eqRBflz",
-        "https://imgur.com/d1AGdQI",
-        "https://imgur.com/Wl3Fjhe",
-        "https://imgur.com/Zbp7n0I",
-        "https://imgur.com/K4P3z66",
-        "https://imgur.com/oGzpQp3",
-        "https://imgur.com/M5GY988",
-        "https://imgur.com/jv7gkTv",
-        "https://imgur.com/mJgMptQ",
-        "https://imgur.com/9yY7fV4",
-        "https://imgur.com/kASJnlQ",
-        "https://imgur.com/4wym9TO",
-        "https://imgur.com/gyT0svP",
-        "https://imgur.com/VwqFIxe",
-        "https://imgur.com/fZ2ZzR2",
-        "https://imgur.com/pFHokGg",
-        "https://imgur.com/pTPXEM3",
-        "https://imgur.com/j74eXQA",
-        "https://imgur.com/4XjIxJa"
-    ]
-    
-    # Captions variados en estrategia vainilla
-    captions = [
-        "Boa noite, meu bem! 💛\n\nEsse foi o look de hoje... Gostou?\n\nNo Privacy eu compartilho tudo sobre o meu dia, conversamos de verdade... Como ter uma namorada só pra você 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
-        
-        "Oi, amor! ✨\n\nTava pensando em você agora...\n\nNo VIP a gente conversa de verdade, eu conto tudo que acontece comigo, e você faz parte do meu dia a dia 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
-        
-        "Meu bem... 💛\n\nAcordei pensando: será que você tá bem?\n\nÉ assim que funciona quando a gente cria uma conexão real, né? No Privacy somos bem mais próximos 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
-        
-        "Boa noite! 🌙\n\nFotinho de hoje antes de dormir...\n\nNo VIP eu sempre compartilho esses momentos íntimos, como se fosse sua namorada te mandando foto antes de dormir 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
-        
-        "Oi, meu amor! 💛\n\nTô com saudade de conversar...\n\nNo Privacy a gente bate papo de verdade, eu respondo tudo, conto meus segredos... É uma conexão genuína 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
-        
-        "Olá! ✨\n\nO que você achou dessa foto?\n\nNo VIP tem muito mais... E o melhor: você pode conversar comigo sobre tudo! Como ter alguém especial só pra você 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
-    ]
-    
     await update.message.reply_text("📥 Importando conteúdo... Aguarde...")
     
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
     importados = 0
-    
-    for link in imgur_links:
-        try:
-            # Convertir link de página para URL directa
-            # Probar con .jpg y .png para compatibilidad regional
-            image_id = link.split('/')[-1]
-            
-            # Intentar primero con .jpg, si falla usar .png
-            direct_url = f"https://i.imgur.com/{image_id}.jpg"
-            
-            # Verificar si la imagen es accesible
-            try:
-                response = requests.head(direct_url, timeout=5)
-                if response.status_code != 200:
-                    # Intentar con .png
-                    direct_url = f"https://i.imgur.com/{image_id}.png"
-            except:
-                # Si falla, intentar con .png
-                direct_url = f"https://i.imgur.com/{image_id}.png"
-            
-            # Elegir caption aleatorio
-            caption = random.choice(captions)
-            
-            # Insertar en BD
-            cursor.execute('''
-                INSERT INTO daily_content (image_url, caption, sent_count)
-                VALUES (?, ?, 0)
-            ''', (direct_url, caption))
-            
-            importados += 1
-            
-        except Exception as e:
-            logger.error(f"Error importando {link}: {e}")
     
     conn.commit()
     
@@ -1556,3 +1475,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
