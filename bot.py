@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
 # URL de imagen actualizada
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.ibb.co/j9p74CJS/bemvindo.png")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "AgACAgEAAxkBAAE98RdpGrNPkBPmP7N9CjA0tIg4DGGMngACSwtrG_9m0UT4aLfg05fqLgEAAwIAA3MAAzYE")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
 # Google Drive Config (NO USADO - quedó de versión anterior)
@@ -1555,3 +1555,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
