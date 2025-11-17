@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-# URL corregida SIN la "x" al final
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.ibb.co/FkMGsT6x/exemplar-9-16-1762315998802.png")
+# URL de imagen actualizada
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "https://i.imgur.com/7Qe2Dsf.jpeg")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
 # Google Drive Config
@@ -93,24 +93,24 @@ https://privacy.com.br/profile/jackloppesfree
 
 _Tô te esperando lá! 😘_"""
 
-TEXTO_BEACONS = """🌐 *ME ENCONTRA EM TODOS OS LUGARES* 🌐
+TEXTO_BEACONS = """🌐 ME ENCONTRA EM TODOS OS LUGARES
 
 Oi, meu amor!
 
-Quer me acompanhar em outras redes também? 💛
+Quer me acompanhar em outras redes também?
 
 Aqui você encontra todos os meus perfis:
-📱 Instagram
-🎵 TikTok
-🐦 Twitter
-✨ E muito mais!
+• Instagram
+• TikTok
+• Twitter
+• E muito mais!
 
-*Não perde nenhuma novidade minha!*
+Não perde nenhuma novidade minha!
 
-👉 *Todos meus links aqui:*
+Todos meus links aqui:
 https://beacons.ai/jaqueline_loppes
 
-💕 _Me segue em todas! Fico feliz quando vejo você por lá_ 😊"""
+Me segue em todas! Fico feliz quando vejo você por lá 😊"""
 
 TEXTO_CANAL = """📣 *MEU CANAL OFICIAL* 📣
 
@@ -661,11 +661,11 @@ async def check_funnel(context: ContextTypes.DEFAULT_TYPE):
 # ==================== FUNCIONES DEL BOT ====================
 
 def crear_menu_principal():
-    """Menú principal - ORDEN ACTUALIZADO"""
+    """Menú principal - ORDEN CORREGIDO"""
     keyboard = [
-        [InlineKeyboardButton("🔥 OnlyFans", callback_data='onlyfans')],
         [InlineKeyboardButton("💛 Privacy VIP", callback_data='privacy_vip')],
         [InlineKeyboardButton("💙 Privacy FREE", callback_data='privacy_free')],
+        [InlineKeyboardButton("🔥 OnlyFans", callback_data='onlyfans')],
         [InlineKeyboardButton("🌐 Todos os Links", callback_data='beacons')],
         [InlineKeyboardButton("📣 Canal Telegram", callback_data='canal')],
         [InlineKeyboardButton("💬 Falar Comigo", callback_data='atendimento')],
@@ -712,6 +712,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error notificando referidor: {e}")
     
+    # Intentar con imagen primero
     try:
         await update.message.reply_photo(
             photo=IMAGEN_BIENVENIDA,
@@ -719,13 +720,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown',
             reply_markup=crear_menu_principal()
         )
+        logger.info("✅ Imagen de bienvenida enviada correctamente")
     except Exception as e:
-        logger.error(f"Error enviando imagen: {e}")
-        await update.message.reply_text(
-            TEXTO_BIENVENIDA,
-            parse_mode='Markdown',
-            reply_markup=crear_menu_principal()
-        )
+        logger.error(f"❌ Error enviando imagen: {e}")
+        # Si falla, enviar solo texto
+        try:
+            await update.message.reply_text(
+                f"✨ *Oi, meu bem!* ✨\n\n{TEXTO_BIENVENIDA}",
+                parse_mode='Markdown',
+                reply_markup=crear_menu_principal()
+            )
+            logger.info("⚠️ Enviado sin imagen (fallback)")
+        except Exception as e2:
+            logger.error(f"❌ Error en fallback: {e2}")
 
 async def add_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando para agregar contenido diario (solo admin)"""
@@ -1128,7 +1135,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif query.data == 'beacons':
         logger.info(f"Enviando mensaje Beacons a {user.id}")
-        await query.message.reply_text(TEXTO_BEACONS, parse_mode='Markdown', reply_markup=crear_boton_volver())
+        try:
+            await query.message.reply_text(TEXTO_BEACONS, reply_markup=crear_boton_volver())
+            logger.info(f"✅ Mensaje Beacons enviado correctamente a {user.id}")
+        except Exception as e:
+            logger.error(f"❌ Error enviando Beacons: {e}")
+            # Fallback sin emoji
+            await query.message.reply_text(
+                "Todos meus links aqui:\nhttps://beacons.ai/jaqueline_loppes",
+                reply_markup=crear_boton_volver()
+            )
     
     elif query.data == 'canal':
         await query.message.reply_text(TEXTO_CANAL, parse_mode='Markdown', reply_markup=crear_boton_volver())
