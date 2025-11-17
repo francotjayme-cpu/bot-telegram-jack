@@ -18,9 +18,12 @@ logger = logging.getLogger(__name__)
 # ==================== CONFIGURACIÓN ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-# URL de imagen actualizada
+# File ID de Telegram (método más confiable)
 IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "AgACAgEAAxkBAAE98RdpGrNPkBPmP7N9CjA0tIg4DGGMngACSwtrG_9m0UT4aLfg05fqLgEAAwIAA3kAAzYE")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
+
+# Google Drive Config (NO USADO - quedó de versión anterior)
+# GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "1GuqbP2iHTu6AtmbRlgnF5S6pSbKKXKGu")
 
 # Sistema de Referidos
 REFERIDOS_NECESARIOS = 5
@@ -90,7 +93,7 @@ https://privacy.com.br/profile/jackloppesfree
 
 _Tô te esperando lá! 😘_"""
 
-TEXTO_BEACONS = """🌐 *ME ENCONTRA EM TODOS OS LUGARES* 🌐
+TEXTO_BEACONS = """🌐 ME ENCONTRA EM TODOS OS LUGARES
 
 Oi, meu amor!
 
@@ -670,14 +673,13 @@ async def check_funnel(context: ContextTypes.DEFAULT_TYPE):
 # ==================== FUNCIONES DEL BOT ====================
 
 def crear_menu_principal():
-    """Menú principal - ORDEN CORREGIDO"""
+    """Menú principal - SIN botón Falar Comigo (no funcional actualmente)"""
     keyboard = [
         [InlineKeyboardButton("💛 Privacy VIP", callback_data='privacy_vip')],
         [InlineKeyboardButton("💙 Privacy FREE", callback_data='privacy_free')],
         [InlineKeyboardButton("🔥 OnlyFans", callback_data='onlyfans')],
         [InlineKeyboardButton("🌐 Todos os Links", callback_data='beacons')],
         [InlineKeyboardButton("📣 Canal Telegram", callback_data='canal')],
-        [InlineKeyboardButton("💬 Falar Comigo", callback_data='atendimento')],
         [InlineKeyboardButton("⭐ Sobre Mim", callback_data='sobre_mim')],
         [InlineKeyboardButton("🎁 Meus Referidos", callback_data='referidos')]
     ]
@@ -959,12 +961,93 @@ async def import_content_command(update: Update, context: ContextTypes.DEFAULT_T
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
     
+    # Lista de URLs de Imgur (páginas)
+    imgur_links = [
+        "https://imgur.com/3AxCFbG",
+        "https://imgur.com/AGGUucv",
+        "https://imgur.com/kDehpQz",
+        "https://imgur.com/MWKmOMx",
+        "https://imgur.com/8UHhOmQ",
+        "https://imgur.com/1KjDSid",
+        "https://imgur.com/8owZ93y",
+        "https://imgur.com/rsx7AJl",
+        "https://imgur.com/cQkJIpJ",
+        "https://imgur.com/ywWMQSp",
+        "https://imgur.com/eqRBflz",
+        "https://imgur.com/d1AGdQI",
+        "https://imgur.com/Wl3Fjhe",
+        "https://imgur.com/Zbp7n0I",
+        "https://imgur.com/K4P3z66",
+        "https://imgur.com/oGzpQp3",
+        "https://imgur.com/M5GY988",
+        "https://imgur.com/jv7gkTv",
+        "https://imgur.com/mJgMptQ",
+        "https://imgur.com/9yY7fV4",
+        "https://imgur.com/kASJnlQ",
+        "https://imgur.com/4wym9TO",
+        "https://imgur.com/gyT0svP",
+        "https://imgur.com/VwqFIxe",
+        "https://imgur.com/fZ2ZzR2",
+        "https://imgur.com/pFHokGg",
+        "https://imgur.com/pTPXEM3",
+        "https://imgur.com/j74eXQA",
+        "https://imgur.com/4XjIxJa"
+    ]
+    
+    # Captions variados en estrategia vainilla
+    captions = [
+        "Boa noite, meu bem! 💛\n\nEsse foi o look de hoje... Gostou?\n\nNo Privacy eu compartilho tudo sobre o meu dia, conversamos de verdade... Como ter uma namorada só pra você 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, amor! ✨\n\nTava pensando em você agora...\n\nNo VIP a gente conversa de verdade, eu conto tudo que acontece comigo, e você faz parte do meu dia a dia 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Meu bem... 💛\n\nAcordei pensando: será que você tá bem?\n\nÉ assim que funciona quando a gente cria uma conexão real, né? No Privacy somos bem mais próximos 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Boa noite! 🌙\n\nFotinho de hoje antes de dormir...\n\nNo VIP eu sempre compartilho esses momentos íntimos, como se fosse sua namorada te mandando foto antes de dormir 💕\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Oi, meu amor! 💛\n\nTô com saudade de conversar...\n\nNo Privacy a gente bate papo de verdade, eu respondo tudo, conto meus segredos... É uma conexão genuína 😊\n\n👉 https://privacy.com.br/profile/jackloppes",
+        
+        "Olá! ✨\n\nO que você achou dessa foto?\n\nNo VIP tem muito mais... E o melhor: você pode conversar comigo sobre tudo! Como ter alguém especial só pra você 💕\n\n👉 https://privacy.com.br/profile/jackloppes"
+    ]
+    
     await update.message.reply_text("📥 Importando conteúdo... Aguarde...")
     
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     
     importados = 0
+    
+    for link in imgur_links:
+        try:
+            # Convertir link de página para URL directa
+            # Probar con .jpg y .png para compatibilidad regional
+            image_id = link.split('/')[-1]
+            
+            # Intentar primero con .jpg, si falla usar .png
+            direct_url = f"https://i.imgur.com/{image_id}.jpg"
+            
+            # Verificar si la imagen es accesible
+            try:
+                response = requests.head(direct_url, timeout=5)
+                if response.status_code != 200:
+                    # Intentar con .png
+                    direct_url = f"https://i.imgur.com/{image_id}.png"
+            except:
+                # Si falla, intentar con .png
+                direct_url = f"https://i.imgur.com/{image_id}.png"
+            
+            # Elegir caption aleatorio
+            caption = random.choice(captions)
+            
+            # Insertar en BD
+            cursor.execute('''
+                INSERT INTO daily_content (image_url, caption, sent_count)
+                VALUES (?, ?, 0)
+            ''', (direct_url, caption))
+            
+            importados += 1
+            
+        except Exception as e:
+            logger.error(f"Error importando {link}: {e}")
     
     conn.commit()
     
@@ -1288,22 +1371,19 @@ def run_http_server():
     server.serve_forever()
 
 # ==================== GOOGLE DRIVE - CONTENIDO DIARIO ====================
+# NOTA: Esta sección quedó de una versión anterior pero NO se usa actualmente.
+# Usamos ImgBB para las imágenes. Dejamos el código comentado por si en el futuro
+# se quiere implementar Google Drive.
 
-def get_google_drive_images(folder_id):
-    """Obtiene lista de imágenes de carpeta pública de Google Drive"""
-    try:
-        # URL de la API de Google Drive para listar archivos
-        url = f"https://drive.google.com/drive/folders/{folder_id}"
-        
-        # Construir URLs directas de descarga
-        # Nota: Para carpetas públicas, necesitamos obtener los IDs de los archivos manualmente
-        # Por ahora usaremos una lista manual que actualizarás
-        
-        logger.info(f"Carpeta de Google Drive configurada: {folder_id}")
-        return []
-    except Exception as e:
-        logger.error(f"Error obteniendo imágenes de Drive: {e}")
-        return []
+# def get_google_drive_images(folder_id):
+#     """Obtiene lista de imágenes de carpeta pública de Google Drive"""
+#     try:
+#         url = f"https://drive.google.com/drive/folders/{folder_id}"
+#         logger.info(f"Carpeta de Google Drive configurada: {folder_id}")
+#         return []
+#     except Exception as e:
+#         logger.error(f"Error obteniendo imágenes de Drive: {e}")
+#         return []
 
 def init_daily_content():
     """Inicializa contenido diario en la base de datos"""
@@ -1453,8 +1533,7 @@ def main():
     application.add_handler(CommandHandler("referidos", referidos_command))
     application.add_handler(CommandHandler("admin", admin_panel))
     application.add_handler(CommandHandler("addcontent", add_content_command))
-    application.add_handler(CommandHandler("importcontent", import_content_command))
-    application.add_handler(CommandHandler("importimgbb", import_imgbb_command))
+    application.add_handler(CommandHandler("importcontent", import_imgbb_command))  # ✅ Importa las 33 fotos de ImgBB
     application.add_handler(CommandHandler("listcontent", list_content_command))
     application.add_handler(CommandHandler("delcontent", delete_content_command))
     application.add_handler(CommandHandler("delcontentall", delete_all_content_command))
@@ -1475,4 +1554,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
