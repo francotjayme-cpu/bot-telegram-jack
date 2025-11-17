@@ -22,8 +22,9 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
 IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "AgACAgEAAxkBAAE98RdpGrNPkBPmP7N9CjA0tIg4DGGMngACSwtrG_9m0UT4aLfg05fqLgEAAwIAA3kAAzYE")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
 
-# Google Drive Config (NO USADO - quedó de versión anterior)
-# GOOGLE_DRIVE_FOLDER_ID = os.getenv("DRIVE_FOLDER_ID", "1GuqbP2iHTu6AtmbRlgnF5S6pSbKKXKGu")
+# Sistema de Referidos
+REFERIDOS_NECESARIOS = 5
+PREMIO_REFERIDO = "Acesso especial a conteúdo exclusivo"
 
 # Configuración de Funnel (días desde registro) - ACORTADO PARA VENTAS EMOCIONALES
 FUNNEL_DAYS = [0, 1, 3, 5, 7]  # Funnel de 7 días
@@ -89,7 +90,7 @@ https://privacy.com.br/profile/jackloppesfree
 
 _Tô te esperando lá! 😘_"""
 
-TEXTO_BEACONS = """🌐 ME ENCONTRA EM TODOS OS LUGARES
+TEXTO_BEACONS = """🌐 *ME ENCONTRA EM TODOS OS LUGARES* 🌐
 
 Oi, meu amor!
 
@@ -1555,5 +1556,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
