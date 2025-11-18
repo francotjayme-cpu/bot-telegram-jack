@@ -592,9 +592,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'admin_dashboard':
         if str(user.id) == ADMIN_CHAT_ID:
             stats = get_user_stats()
-            segments_text = "\n".join([f"• {k}: {v}" for k, v in stats['segments'].items()])
             
-            msg = f"""📊 *DASHBOARD*
+            # Formatear segmentos sin Markdown problemático
+            segments_list = []
+            emojis = {"nuevo": "🆕", "curioso": "👀", "interesado": "🔥", "inactivo": "😴", "perdido": "💔", "activo": "💛"}
+            for seg, count in stats['segments'].items():
+                segments_list.append(f"{emojis.get(seg, '•')} {seg.title()}: {count}")
+            segments_text = "\n".join(segments_list)
+            
+            # Mensaje sin caracteres problemáticos
+            msg = f"""📊 DASHBOARD
 
 👥 Total: {stats['total_users']}
 🆕 Hoje: {stats['users_today']}
@@ -607,10 +614,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🎁 Referidos: {stats['total_referidos']}
 
-🎯 *Segmentos:*
-{segments_text}"""
+🎯 SEGMENTOS:
+{segments_text}
+
+📅 {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
             
-            await query.message.reply_text(msg, parse_mode='Markdown')
+            # Enviar SIN parse_mode para evitar errores
+            await query.message.reply_text(msg)
     
     elif query.data == 'admin_segments':
         if str(user.id) == ADMIN_CHAT_ID:
