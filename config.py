@@ -205,15 +205,15 @@ Sabe, criei este cantinho especial para me conectar de verdade com pessoas como 
 
 Não é só sobre fotos bonitas (embora tenha muitas 😊), é sobre criar algo real. Uma conexão genuína.
 
-*Como ter uma namorada só pra você*, que te entende, conversa de verdade, e tá sempre aqui...
+Como ter uma namorada só pra você, que te entende, conversa de verdade, e tá sempre aqui...
 
 Quer me conhecer melhor? 💕
 
-Começa pelo FREE e vê se rola química entre a gente 😊
+👉 https://privacy.com.br/profile/jackloppes
 
-👉 https://privacy.com.br/profile/jackloppesfree
+Te espero lá ✨
 
-_Te espero lá_ ✨""",
+(Ah, e o acesso é bem limitado viu? Prefiro ter poucas pessoas, mas que sejam especiais de verdade 💋)""",
     
     1: """Oi de novo, meu bem! 💛
 
@@ -235,25 +235,29 @@ _Tô te esperando lá_ 😘""",
     
     3: """Meu bem, queria te contar algo... 💛
 
-Hoje recebi uma mensagem linda de um assinante dizendo que o momento do dia preferido dele é quando conversa comigo no Privacy.
+Hoje recebi uma mensagem que me deixou emocionada...
+
+Um assinante me disse: "Jack, você não imagina o quanto é bom chegar em casa depois de um dia difícil e ter você aqui pra conversar. Me faz esquecer tudo."
 
 Isso me tocou muito ❤️
 
-Porque é exatamente isso que eu quero criar... *Uma conexão real*.
+Porque é exatamente isso que eu quero criar... Uma conexão real.
 
 Não é sobre fotos bonitas (que tem muitas!). É sobre ter alguém especial só pra você.
 
-*Alguém que te entende, que conversa de verdade, que se importa...*
+Alguém que te entende, que conversa de verdade, que se importa...
 
 Tipo uma namorada virtual que tá sempre aqui pra você 😊
 
-Já tá na hora de você fazer parte disso também, não acha?
+Sinto que você e eu temos essa química, sabe? 💕
 
-*Vem pro VIP?* Prometo que você não vai se arrepender 💕
+Vem pro VIP? Prometo que você não vai se arrepender...
 
 👉 https://privacy.com.br/profile/jackloppes
 
-_Te espero com carinho_ ✨""",
+Te espero com carinho ✨
+
+PS: Só tenho espaço pra mais algumas pessoas... depois vou fechar as portas por um tempo 🔒""",
     
     5: """Oi, amor... 💛
 
