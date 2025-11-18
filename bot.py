@@ -16,6 +16,14 @@ import random
 import asyncio
 import requests
 
+# Importar funciones de base de datos
+from database import (
+    init_database, register_user, log_interaction, update_user_segment,
+    get_referidos_count, get_user_stats, get_all_user_ids, export_contacts_to_csv,
+    get_daily_content, update_content_sent, add_daily_content, get_content_count,
+    get_random_content, get_users_for_funnel, mark_funnel_sent, import_old_contacts
+)
+
 # Importar configuración (si usás archivo separado, sino usa las variables de abajo)
 try:
     from config import *
@@ -43,260 +51,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==================== BASE DE DATOS ====================
-
-def init_database():
-    """Inicializa la base de datos SQLite con todas las tablas necesarias"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    # Usuarios
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            registration_date TEXT,
-            last_interaction TEXT,
-            total_interactions INTEGER DEFAULT 0,
-            referido_por INTEGER DEFAULT NULL,
-            puntos_referido INTEGER DEFAULT 0,
-            segment TEXT DEFAULT 'nuevo',
-            FOREIGN KEY (referido_por) REFERENCES users (user_id)
-        )
-    ''')
-    
-    # Interacciones
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS interactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action_type TEXT,
-            action_data TEXT,
-            timestamp TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-    ''')
-    
-    # Referidos
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS referrals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            referidor_id INTEGER,
-            referido_id INTEGER,
-            fecha TEXT,
-            recompensa_reclamada INTEGER DEFAULT 0,
-            FOREIGN KEY (referidor_id) REFERENCES users (user_id),
-            FOREIGN KEY (referido_id) REFERENCES users (user_id)
-        )
-    ''')
-    
-    # Funnel
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS funnel_status (
-            user_id INTEGER,
-            day_number INTEGER,
-            sent INTEGER DEFAULT 0,
-            sent_date TEXT,
-            PRIMARY KEY (user_id, day_number),
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-    ''')
-    
-    # Contenido diario
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS daily_content (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            image_url TEXT,
-            caption TEXT,
-            sent_count INTEGER DEFAULT 0,
-            last_sent TEXT
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info("✅ Base de datos inicializada")
-
-def register_user(user_id, username, first_name, last_name, referido_por=None):
-    """Registra o actualiza un usuario"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-    exists = cursor.fetchone()
-    
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    if not exists:
-        cursor.execute('''
-            INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, referido_por, segment)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'nuevo')
-        ''', (user_id, username, first_name, last_name, now, now, referido_por))
-        
-        # Inicializar funnel
-        for day in FUNNEL_DAYS:
-            cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (?, ?, 0)', (user_id, day))
-        
-        # Registrar referido
-        if referido_por:
-            cursor.execute('INSERT INTO referrals (referidor_id, referido_id, fecha) VALUES (?, ?, ?)', 
-                         (referido_por, user_id, now))
-            cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = ?', (referido_por,))
-        
-        logger.info(f"✅ Nuevo usuario: {first_name} ({user_id})")
-    else:
-        cursor.execute('''
-            UPDATE users 
-            SET last_interaction = ?, total_interactions = total_interactions + 1,
-                username = ?, first_name = ?, last_name = ?
-            WHERE user_id = ?
-        ''', (now, username, first_name, last_name, user_id))
-    
-    conn.commit()
-    conn.close()
-
-def log_interaction(user_id, action_type, action_data=""):
-    """Registra una interacción del usuario"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('INSERT INTO interactions (user_id, action_type, action_data, timestamp) VALUES (?, ?, ?, ?)',
-                  (user_id, action_type, action_data, now))
-    conn.commit()
-    conn.close()
-
-def update_user_segment(user_id):
-    """Actualiza el segmento del usuario según comportamiento"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT registration_date, last_interaction FROM users WHERE user_id = ?', (user_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        conn.close()
-        return
-    
-    reg_date = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
-    last_int = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
-    now = datetime.now()
-    
-    days_since_reg = (now - reg_date).days
-    days_since_int = (now - last_int).days
-    
-    # Determinar segmento
-    if days_since_int > LOST_DAYS:
-        segment = 'perdido'
-    elif days_since_int > INACTIVE_DAYS:
-        segment = 'inactivo'
-    elif days_since_reg <= 3:
-        segment = 'nuevo'
-    else:
-        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = ? AND action_type = ?', 
-                      (user_id, 'button_privacy_vip'))
-        vip_clicks = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = ? AND action_type = ?',
-                      (user_id, 'button_privacy_free'))
-        free_clicks = cursor.fetchone()[0]
-        
-        segment = 'interesado' if vip_clicks > 0 else ('curioso' if free_clicks > 0 else 'activo')
-    
-    cursor.execute('UPDATE users SET segment = ? WHERE user_id = ?', (segment, user_id))
-    conn.commit()
-    conn.close()
-
-def get_referidos_count(user_id):
-    """Cuenta referidos de un usuario"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM referrals WHERE referidor_id = ?', (user_id,))
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count
-
-def get_user_stats():
-    """Estadísticas completas del bot"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT COUNT(*) FROM users')
-    total_users = cursor.fetchone()[0]
-    
-    today = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date LIKE ?', (f'{today}%',))
-    users_today = cursor.fetchone()[0]
-    
-    week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date >= ?', (week_ago,))
-    users_week = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM users WHERE last_interaction >= ?', (week_ago,))
-    activos_week = cursor.fetchone()[0]
-    
-    cursor.execute('''
-        SELECT action_type, COUNT(*) as count 
-        FROM interactions 
-        WHERE action_type LIKE 'button_%'
-        GROUP BY action_type 
-        ORDER BY count DESC 
-        LIMIT 1
-    ''')
-    popular = cursor.fetchone()
-    popular_action = popular[0].replace('button_', '') if popular else "N/A"
-    popular_count = popular[1] if popular else 0
-    
-    cursor.execute('SELECT COUNT(*) FROM interactions')
-    total_interactions = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM referrals')
-    total_referidos = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT segment, COUNT(*) FROM users GROUP BY segment')
-    segments = dict(cursor.fetchall())
-    
-    engagement = (activos_week / total_users * 100) if total_users > 0 else 0
-    
-    conn.close()
-    
-    return {
-        'total_users': total_users,
-        'users_today': users_today,
-        'users_week': users_week,
-        'activos_week': activos_week,
-        'popular_action': popular_action,
-        'popular_count': popular_count,
-        'total_interactions': total_interactions,
-        'total_referidos': total_referidos,
-        'engagement': engagement,
-        'segments': segments
-    }
-
-def get_all_user_ids(segment=None):
-    """Obtiene IDs de usuarios, filtrado opcional por segmento"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    if segment:
-        cursor.execute('SELECT user_id FROM users WHERE segment = ?', (segment,))
-    else:
-        cursor.execute('SELECT user_id FROM users')
-    
-    user_ids = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return user_ids
+# Todas las funciones de BD ahora están en database.py
 
 # ==================== FUNCIONES DE CONTENIDO ====================
 
 def init_daily_content():
     """Inicializa sistema de contenido diario"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM daily_content')
-    count = cursor.fetchone()[0]
-    conn.close()
-    
+    count = get_content_count()
+
     if count == 0:
         logger.info("⚠️ No hay contenido diario. Usa /importcontent para agregar fotos.")
     else:
@@ -305,43 +67,29 @@ def init_daily_content():
 async def send_daily_content(context: ContextTypes.DEFAULT_TYPE):
     """Envía contenido diario a todos los usuarios"""
     try:
-        conn = sqlite3.connect('bot_database.db')
-        cursor = conn.cursor()
-        
-        # Obtener contenido menos usado
-        cursor.execute('''
-            SELECT id, image_url, caption FROM daily_content 
-            ORDER BY sent_count ASC, last_sent ASC 
-            LIMIT 1
-        ''')
-        content = cursor.fetchone()
-        
+        content = get_daily_content()
+
         if not content:
             logger.warning("⚠️ No hay contenido disponible")
-            conn.close()
             return
-        
+
         content_id, image_url, caption = content
         user_ids = get_all_user_ids()
-        
+
         enviados = 0
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
+
         for user_id in user_ids:
             try:
                 await context.bot.send_photo(chat_id=user_id, photo=image_url, caption=caption)
                 enviados += 1
             except Exception as e:
                 logger.error(f"Error enviando a {user_id}: {e}")
-        
+
         # Actualizar contador
-        cursor.execute('UPDATE daily_content SET sent_count = sent_count + 1, last_sent = ? WHERE id = ?',
-                      (now, content_id))
-        conn.commit()
-        conn.close()
-        
+        update_content_sent(content_id)
+
         logger.info(f"✅ Contenido diario enviado a {enviados} usuarios")
-        
+
         # Notificar al admin
         try:
             await context.bot.send_message(
@@ -351,7 +99,7 @@ async def send_daily_content(context: ContextTypes.DEFAULT_TYPE):
             )
         except:
             pass
-            
+
     except Exception as e:
         logger.error(f"Error en envío diario: {e}")
 
@@ -381,37 +129,18 @@ async def schedule_daily_content(application):
 
 async def check_funnel(context: ContextTypes.DEFAULT_TYPE):
     """Revisa y envía mensajes del funnel automático"""
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    now = datetime.now()
-    cursor.execute('SELECT user_id, registration_date FROM users')
-    users = cursor.fetchall()
-    
-    for user_id, reg_date in users:
-        reg_datetime = datetime.strptime(reg_date, '%Y-%m-%d %H:%M:%S')
-        days_since_reg = (now - reg_datetime).days
-        
-        for day in FUNNEL_DAYS:
-            if days_since_reg >= day:
-                cursor.execute('SELECT sent FROM funnel_status WHERE user_id = ? AND day_number = ?',
-                             (user_id, day))
-                result = cursor.fetchone()
-                
-                if result and not result[0]:
-                    try:
-                        from config import FUNNEL_MESSAGES
-                        message = FUNNEL_MESSAGES[day]
-                        await context.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
-                        
-                        cursor.execute('UPDATE funnel_status SET sent = 1, sent_date = ? WHERE user_id = ? AND day_number = ?',
-                                     (now.strftime('%Y-%m-%d %H:%M:%S'), user_id, day))
-                        conn.commit()
-                        logger.info(f"✅ Funnel día {day} enviado a {user_id}")
-                    except Exception as e:
-                        logger.error(f"Error enviando funnel a {user_id}: {e}")
-    
-    conn.close()
+    pending_funnel = get_users_for_funnel(FUNNEL_DAYS)
+
+    for user_id, day in pending_funnel:
+        try:
+            from config import FUNNEL_MESSAGES
+            message = FUNNEL_MESSAGES[day]
+            await context.bot.send_message(chat_id=user_id, text=message, parse_mode='Markdown')
+
+            mark_funnel_sent(user_id, day)
+            logger.info(f"✅ Funnel día {day} enviado a {user_id}")
+        except Exception as e:
+            logger.error(f"Error enviando funnel a {user_id}: {e}")
 
 # ==================== MENÚS Y COMANDOS ====================
 
@@ -696,32 +425,25 @@ async def add_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Agregar contenido diario"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
+
     if len(context.args) < 2:
         await update.message.reply_text(
             "❌ Uso: /addcontent [URL] [caption]\n\nExemplo:\n/addcontent https://i.ibb.co/ABC/foto.jpg Boa noite 💛"
         )
         return
-    
+
     url = context.args[0]
     caption = " ".join(context.args[1:])
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO daily_content (image_url, caption, sent_count) VALUES (?, ?, 0)', (url, caption))
-    conn.commit()
-    
-    cursor.execute('SELECT COUNT(*) FROM daily_content')
-    total = cursor.fetchone()[0]
-    conn.close()
-    
+
+    total = add_daily_content(url, caption)
+
     await update.message.reply_text(f"✅ Adicionado!\n\n📊 Total: {total} fotos")
 
 async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Importa las 33 fotos de ImgBB"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
+
     # URLs directas de ImgBB
     direct_urls = [
         "https://i.ibb.co/SXvDNtvY/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-0b1cbd92.jpg",
@@ -758,28 +480,22 @@ async def import_imgbb_command(update: Update, context: ContextTypes.DEFAULT_TYP
         "https://i.ibb.co/whdT8MMr/IMG-20251116-WA0158.jpg",
         "https://i.ibb.co/tMqgZ8s4/IMG-20251116-WA0159.jpg"
     ]
-    
+
     from config import DAILY_CAPTIONS
-    
+
     await update.message.reply_text("📥 Importando 33 fotos...")
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
+
     importados = 0
     for url in direct_urls:
         try:
             caption = random.choice(DAILY_CAPTIONS)
-            cursor.execute('INSERT INTO daily_content (image_url, caption, sent_count) VALUES (?, ?, 0)', (url, caption))
+            add_daily_content(url, caption)
             importados += 1
         except Exception as e:
             logger.error(f"Error: {e}")
-    
-    conn.commit()
-    cursor.execute('SELECT COUNT(*) FROM daily_content')
-    total = cursor.fetchone()[0]
-    conn.close()
-    
+
+    total = get_content_count()
+
     await update.message.reply_text(f"✅ Importado!\n\n📸 Importados: {importados}\n📊 Total: {total}")
 
 async def list_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -891,7 +607,7 @@ async def import_contacts_command(update: Update, context: ContextTypes.DEFAULT_
     """Importa los 509 contactos del bot anterior"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
+
     # Lista de los 509 IDs
     old_contacts = [
         6368408762, 7519505004, 7196184634, 7723659270, 404989065, 6321691912, 6329562703, 912014471,
@@ -959,47 +675,11 @@ async def import_contacts_command(update: Update, context: ContextTypes.DEFAULT_
         8174589865, 7425363026, 5421850656, 6057800862, 6897665088, 8315500054, 7375669270, 837796756,
         7411212510, 8108956721, 6393223834, 8138268663, 2086937171, 8216538870
     ]
-    
+
     await update.message.reply_text(f"📥 Importando {len(old_contacts)} contactos... Aguarde...")
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    
-    importados = 0
-    ya_existian = 0
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    for user_id in old_contacts:
-        try:
-            # Verificar si ya existe
-            cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
-            exists = cursor.fetchone()
-            
-            if not exists:
-                # Registrar como usuario recuperado
-                cursor.execute('''
-                    INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, segment)
-                    VALUES (?, ?, ?, ?, ?, ?, 0, 'recuperado')
-                ''', (user_id, None, f"User_{user_id}", None, now, now))
-                
-                # Inicializar funnel
-                for day in FUNNEL_DAYS:
-                    cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (?, ?, 0)', (user_id, day))
-                
-                importados += 1
-            else:
-                ya_existian += 1
-                
-        except Exception as e:
-            logger.error(f"Error importando {user_id}: {e}")
-    
-    conn.commit()
-    
-    # Total ahora
-    cursor.execute('SELECT COUNT(*) FROM users')
-    total = cursor.fetchone()[0]
-    conn.close()
-    
+
+    importados, ya_existian, total = import_old_contacts(old_contacts, FUNNEL_DAYS)
+
     msg = f"""✅ *IMPORTACIÓN COMPLETA*
 
 📊 *Resultados:*
@@ -1008,28 +688,81 @@ async def import_contacts_command(update: Update, context: ContextTypes.DEFAULT_
 • Total en BD: {total}
 
 🎯 Los contactos recuperados recibirán el funnel desde día 0!"""
-    
+
     await update.message.reply_text(msg, parse_mode='Markdown')
     logger.info(f"✅ Importados {importados} contactos del bot anterior")
 
 async def test_daily_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Prueba envío diario"""
+    """Prueba envío diario (solo al admin)"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT image_url, caption FROM daily_content ORDER BY RANDOM() LIMIT 1')
-    content = cursor.fetchone()
-    conn.close()
-    
+
+    content = get_random_content()
+
     if not content:
         await update.message.reply_text("❌ Sem conteúdo")
         return
-    
+
     try:
         await update.message.reply_photo(photo=content[0], caption=content[1])
         await update.message.reply_text("✅ Teste OK!")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
+
+async def send_daily_now_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Dispara envío diario manual COMPLETO a todos los usuarios"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+
+    await update.message.reply_text("🚀 Iniciando envio diário manual para TODOS os usuários...")
+
+    # Reutiliza la función send_daily_content
+    try:
+        await send_daily_content(context)
+        await update.message.reply_text("✅ Envio diário completo!")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
+        logger.error(f"Error en envío manual: {e}")
+
+async def export_contacts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Exporta todos los contactos a CSV"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+
+    await update.message.reply_text("📊 Exportando contactos...")
+
+    try:
+        filename, total = export_contacts_to_csv()
+
+        with open(filename, 'rb') as csv_file:
+            await context.bot.send_document(
+                chat_id=ADMIN_CHAT_ID,
+                document=csv_file,
+                filename=filename,
+                caption=f"✅ *Exportación Completa*\n\n📊 Total: {total} contactos\n\n⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                parse_mode='Markdown'
+            )
+
+        # Eliminar archivo local
+        import os
+        os.remove(filename)
+
+        logger.info(f"✅ Contactos exportados: {total}")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro: {e}")
+        logger.error(f"Error exportando contactos: {e}")
+
+async def backup_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Hace backup manual de la BD"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+
+    await update.message.reply_text("📦 Creando backup...")
+
+    try:
+        await backup_database(context)
+        await update.message.reply_text("✅ Backup enviado!")
     except Exception as e:
         await update.message.reply_text(f"❌ Erro: {e}")
 
@@ -1067,10 +800,13 @@ def run_http_server():
 # ==================== TAREAS AUTOMÁTICAS ====================
 
 async def scheduled_tasks(application):
-    """Tareas programadas: funnel y contenido"""
+    """Tareas programadas: funnel, contenido y backups"""
     # Iniciar envío diario
     asyncio.create_task(schedule_daily_content(application))
-    
+
+    # Iniciar backups automáticos cada 6 horas
+    asyncio.create_task(schedule_backups(application))
+
     while True:
         try:
             # Revisar funnel cada hora
@@ -1109,6 +845,9 @@ def main():
     application.add_handler(CommandHandler("delcontent", delete_content_command))
     application.add_handler(CommandHandler("delcontentall", delete_all_content_command))
     application.add_handler(CommandHandler("testdaily", test_daily_command))
+    application.add_handler(CommandHandler("senddaily", send_daily_now_command))
+    application.add_handler(CommandHandler("exportcontacts", export_contacts_command))
+    application.add_handler(CommandHandler("backup", backup_manual_command))
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_handler))
     
@@ -1120,6 +859,7 @@ def main():
     logger.info("📊 Funnel automático: ACTIVO")
     logger.info("🎯 Segmentación: ACTIVA")
     logger.info("📸 Contenido diario: ACTIVO")
+    logger.info("💾 Backups automáticos (cada 6h): ACTIVO")
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
