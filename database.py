@@ -2,80 +2,101 @@
 DATABASE MANAGER - BOT TELEGRAM JACK LOPPES
 ===========================================
 Todas las funciones de base de datos centralizadas
+Versión PostgreSQL para Render
 """
 
-import sqlite3
+import os
+import psycopg2
+from psycopg2 import pool
 import logging
 from datetime import datetime, timedelta
 import csv
 
 logger = logging.getLogger(__name__)
 
+# URL de conexión a PostgreSQL
+# Render configura DATABASE_URL automáticamente cuando vinculas la BD
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://bot_database_y9yi_user:EmbO4B57YprIkUFyRirxB73etmUdwPG2@dpg-d4gb0vmfu37c73chp9qg-a.oregon-postgres.render.com/bot_database_y9yi"
+)
+
+# Pool de conexiones para mejor rendimiento
+connection_pool = None
+
+def get_connection():
+    """Obtiene una conexión del pool"""
+    global connection_pool
+    if connection_pool is None:
+        connection_pool = psycopg2.pool.SimpleConnectionPool(1, 10, DATABASE_URL)
+    return connection_pool.getconn()
+
+def release_connection(conn):
+    """Devuelve la conexión al pool"""
+    global connection_pool
+    if connection_pool:
+        connection_pool.putconn(conn)
+
 # ==================== INICIALIZACIÓN ====================
 
 def init_database():
-    """Inicializa la base de datos SQLite con todas las tablas necesarias"""
-    conn = sqlite3.connect('bot_database.db')
+    """Inicializa la base de datos PostgreSQL con todas las tablas necesarias"""
+    conn = get_connection()
     cursor = conn.cursor()
 
     # Usuarios
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
+            user_id BIGINT PRIMARY KEY,
             username TEXT,
             first_name TEXT,
             last_name TEXT,
             registration_date TEXT,
             last_interaction TEXT,
             total_interactions INTEGER DEFAULT 0,
-            referido_por INTEGER DEFAULT NULL,
+            referido_por BIGINT DEFAULT NULL,
             puntos_referido INTEGER DEFAULT 0,
-            segment TEXT DEFAULT 'nuevo',
-            FOREIGN KEY (referido_por) REFERENCES users (user_id)
+            segment TEXT DEFAULT 'nuevo'
         )
     ''')
 
     # Interacciones
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS interactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
             action_type TEXT,
             action_data TEXT,
-            timestamp TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
+            timestamp TEXT
         )
     ''')
 
     # Referidos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS referrals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            referidor_id INTEGER,
-            referido_id INTEGER,
+            id SERIAL PRIMARY KEY,
+            referidor_id BIGINT,
+            referido_id BIGINT,
             fecha TEXT,
-            recompensa_reclamada INTEGER DEFAULT 0,
-            FOREIGN KEY (referidor_id) REFERENCES users (user_id),
-            FOREIGN KEY (referido_id) REFERENCES users (user_id)
+            recompensa_reclamada INTEGER DEFAULT 0
         )
     ''')
 
     # Funnel
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS funnel_status (
-            user_id INTEGER,
+            user_id BIGINT,
             day_number INTEGER,
             sent INTEGER DEFAULT 0,
             sent_date TEXT,
-            PRIMARY KEY (user_id, day_number),
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
+            PRIMARY KEY (user_id, day_number)
         )
     ''')
 
     # Contenido diario
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS daily_content (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             image_url TEXT,
             caption TEXT,
             sent_count INTEGER DEFAULT 0,
@@ -84,8 +105,8 @@ def init_database():
     ''')
 
     conn.commit()
-    conn.close()
-    logger.info("✅ Base de datos inicializada")
+    release_connection(conn)
+    logger.info("✅ Base de datos PostgreSQL inicializada")
 
 # ==================== GESTIÓN DE USUARIOS ====================
 
@@ -94,10 +115,10 @@ def register_user(user_id, username, first_name, last_name, referido_por=None, f
     if funnel_days is None:
         funnel_days = [0, 1, 3, 5, 7]
 
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT user_id FROM users WHERE user_id = %s', (user_id,))
     exists = cursor.fetchone()
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -105,51 +126,51 @@ def register_user(user_id, username, first_name, last_name, referido_por=None, f
     if not exists:
         cursor.execute('''
             INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, referido_por, segment)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'nuevo')
+            VALUES (%s, %s, %s, %s, %s, %s, 1, %s, 'nuevo')
         ''', (user_id, username, first_name, last_name, now, now, referido_por))
 
         # Inicializar funnel
         for day in funnel_days:
-            cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (?, ?, 0)', (user_id, day))
+            cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (%s, %s, 0)', (user_id, day))
 
         # Registrar referido
         if referido_por:
-            cursor.execute('INSERT INTO referrals (referidor_id, referido_id, fecha) VALUES (?, ?, ?)',
+            cursor.execute('INSERT INTO referrals (referidor_id, referido_id, fecha) VALUES (%s, %s, %s)',
                          (referido_por, user_id, now))
-            cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = ?', (referido_por,))
+            cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = %s', (referido_por,))
 
         logger.info(f"✅ Nuevo usuario: {first_name} ({user_id})")
     else:
         cursor.execute('''
             UPDATE users
-            SET last_interaction = ?, total_interactions = total_interactions + 1,
-                username = ?, first_name = ?, last_name = ?
-            WHERE user_id = ?
+            SET last_interaction = %s, total_interactions = total_interactions + 1,
+                username = %s, first_name = %s, last_name = %s
+            WHERE user_id = %s
         ''', (now, username, first_name, last_name, user_id))
 
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 def log_interaction(user_id, action_type, action_data=""):
     """Registra una interacción del usuario"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    cursor.execute('INSERT INTO interactions (user_id, action_type, action_data, timestamp) VALUES (?, ?, ?, ?)',
+    cursor.execute('INSERT INTO interactions (user_id, action_type, action_data, timestamp) VALUES (%s, %s, %s, %s)',
                   (user_id, action_type, action_data, now))
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 def update_user_segment(user_id, inactive_days=3, lost_days=7):
     """Actualiza el segmento del usuario según comportamiento"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT registration_date, last_interaction FROM users WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT registration_date, last_interaction FROM users WHERE user_id = %s', (user_id,))
     result = cursor.fetchone()
 
     if not result:
-        conn.close()
+        release_connection(conn)
         return
 
     reg_date = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
@@ -167,54 +188,54 @@ def update_user_segment(user_id, inactive_days=3, lost_days=7):
     elif days_since_reg <= 3:
         segment = 'nuevo'
     else:
-        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = ? AND action_type = ?',
+        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = %s AND action_type = %s',
                       (user_id, 'button_privacy_vip'))
         vip_clicks = cursor.fetchone()[0]
 
-        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = ? AND action_type = ?',
+        cursor.execute('SELECT COUNT(*) FROM interactions WHERE user_id = %s AND action_type = %s',
                       (user_id, 'button_privacy_free'))
         free_clicks = cursor.fetchone()[0]
 
         segment = 'interesado' if vip_clicks > 0 else ('curioso' if free_clicks > 0 else 'activo')
 
-    cursor.execute('UPDATE users SET segment = ? WHERE user_id = ?', (segment, user_id))
+    cursor.execute('UPDATE users SET segment = %s WHERE user_id = %s', (segment, user_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 # ==================== CONSULTAS ====================
 
 def get_referidos_count(user_id):
     """Cuenta referidos de un usuario"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM referrals WHERE referidor_id = ?', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM referrals WHERE referidor_id = %s', (user_id,))
     count = cursor.fetchone()[0]
-    conn.close()
+    release_connection(conn)
     return count
 
 def get_user_stats():
     """Estadísticas completas del bot"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('SELECT COUNT(*) FROM users')
     total_users = cursor.fetchone()[0]
 
     today = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date LIKE ?', (f'{today}%',))
+    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date LIKE %s', (f'{today}%',))
     users_today = cursor.fetchone()[0]
 
     week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date >= ?', (week_ago,))
+    cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date >= %s', (week_ago,))
     users_week = cursor.fetchone()[0]
 
-    cursor.execute('SELECT COUNT(*) FROM users WHERE last_interaction >= ?', (week_ago,))
+    cursor.execute('SELECT COUNT(*) FROM users WHERE last_interaction >= %s', (week_ago,))
     activos_week = cursor.fetchone()[0]
 
     cursor.execute('''
         SELECT action_type, COUNT(*) as count
         FROM interactions
-        WHERE action_type LIKE 'button_%'
+        WHERE action_type LIKE 'button_%%'
         GROUP BY action_type
         ORDER BY count DESC
         LIMIT 1
@@ -234,7 +255,7 @@ def get_user_stats():
 
     engagement = (activos_week / total_users * 100) if total_users > 0 else 0
 
-    conn.close()
+    release_connection(conn)
 
     return {
         'total_users': total_users,
@@ -251,21 +272,21 @@ def get_user_stats():
 
 def get_all_user_ids(segment=None):
     """Obtiene IDs de usuarios, filtrado opcional por segmento"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     if segment:
-        cursor.execute('SELECT user_id FROM users WHERE segment = ?', (segment,))
+        cursor.execute('SELECT user_id FROM users WHERE segment = %s', (segment,))
     else:
         cursor.execute('SELECT user_id FROM users')
 
     user_ids = [row[0] for row in cursor.fetchall()]
-    conn.close()
+    release_connection(conn)
     return user_ids
 
 def get_all_users_data():
     """Obtiene todos los datos de usuarios para exportar"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -277,7 +298,7 @@ def get_all_users_data():
     ''')
 
     users = cursor.fetchall()
-    conn.close()
+    release_connection(conn)
     return users
 
 def export_contacts_to_csv(filename='contacts_export.csv'):
@@ -305,61 +326,89 @@ def export_contacts_to_csv(filename='contacts_export.csv'):
 
 def get_daily_content():
     """Obtiene contenido diario menos usado"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
         SELECT id, image_url, caption FROM daily_content
-        ORDER BY sent_count ASC, last_sent ASC
+        ORDER BY sent_count ASC, last_sent ASC NULLS FIRST
         LIMIT 1
     ''')
     content = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
 
     return content
 
 def update_content_sent(content_id):
     """Actualiza contador de envíos de contenido"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    cursor.execute('UPDATE daily_content SET sent_count = sent_count + 1, last_sent = ? WHERE id = ?',
+    cursor.execute('UPDATE daily_content SET sent_count = sent_count + 1, last_sent = %s WHERE id = %s',
                   (now, content_id))
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 def add_daily_content(image_url, caption):
     """Agrega contenido diario"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO daily_content (image_url, caption, sent_count) VALUES (?, ?, 0)',
+    cursor.execute('INSERT INTO daily_content (image_url, caption, sent_count) VALUES (%s, %s, 0)',
                   (image_url, caption))
     conn.commit()
 
     cursor.execute('SELECT COUNT(*) FROM daily_content')
     total = cursor.fetchone()[0]
-    conn.close()
+    release_connection(conn)
 
     return total
 
 def get_content_count():
     """Obtiene cantidad de contenido disponible"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM daily_content')
     count = cursor.fetchone()[0]
-    conn.close()
+    release_connection(conn)
     return count
 
 def get_random_content():
     """Obtiene contenido aleatorio para pruebas"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT image_url, caption FROM daily_content ORDER BY RANDOM() LIMIT 1')
     content = cursor.fetchone()
-    conn.close()
+    release_connection(conn)
     return content
+
+def list_content(limit=10):
+    """Lista contenido diario"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, sent_count FROM daily_content ORDER BY id LIMIT %s', (limit,))
+    content = cursor.fetchall()
+    release_connection(conn)
+    return content
+
+def delete_content(content_id):
+    """Elimina contenido por ID"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM daily_content WHERE id = %s', (content_id,))
+    conn.commit()
+    release_connection(conn)
+
+def delete_all_content():
+    """Elimina todo el contenido"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM daily_content')
+    count = cursor.fetchone()[0]
+    cursor.execute('DELETE FROM daily_content')
+    conn.commit()
+    release_connection(conn)
+    return count
 
 # ==================== FUNNEL ====================
 
@@ -368,7 +417,7 @@ def get_users_for_funnel(funnel_days=None):
     if funnel_days is None:
         funnel_days = [0, 1, 3, 5, 7]
 
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     now = datetime.now()
@@ -383,26 +432,26 @@ def get_users_for_funnel(funnel_days=None):
 
         for day in funnel_days:
             if days_since_reg >= day:
-                cursor.execute('SELECT sent FROM funnel_status WHERE user_id = ? AND day_number = ?',
+                cursor.execute('SELECT sent FROM funnel_status WHERE user_id = %s AND day_number = %s',
                              (user_id, day))
                 result = cursor.fetchone()
 
                 if result and not result[0]:
                     pending_funnel.append((user_id, day))
 
-    conn.close()
+    release_connection(conn)
     return pending_funnel
 
 def mark_funnel_sent(user_id, day_number):
     """Marca un mensaje del funnel como enviado"""
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    cursor.execute('UPDATE funnel_status SET sent = 1, sent_date = ? WHERE user_id = ? AND day_number = ?',
+    cursor.execute('UPDATE funnel_status SET sent = 1, sent_date = %s WHERE user_id = %s AND day_number = %s',
                   (now, user_id, day_number))
     conn.commit()
-    conn.close()
+    release_connection(conn)
 
 # ==================== IMPORTACIÓN ====================
 
@@ -411,7 +460,7 @@ def import_old_contacts(contact_ids, funnel_days=None):
     if funnel_days is None:
         funnel_days = [0, 1, 3, 5, 7]
 
-    conn = sqlite3.connect('bot_database.db')
+    conn = get_connection()
     cursor = conn.cursor()
 
     importados = 0
@@ -420,17 +469,17 @@ def import_old_contacts(contact_ids, funnel_days=None):
 
     for user_id in contact_ids:
         try:
-            cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+            cursor.execute('SELECT user_id FROM users WHERE user_id = %s', (user_id,))
             exists = cursor.fetchone()
 
             if not exists:
                 cursor.execute('''
                     INSERT INTO users (user_id, username, first_name, last_name, registration_date, last_interaction, total_interactions, segment)
-                    VALUES (?, ?, ?, ?, ?, ?, 0, 'recuperado')
+                    VALUES (%s, %s, %s, %s, %s, %s, 0, 'recuperado')
                 ''', (user_id, None, f"User_{user_id}", None, now, now))
 
                 for day in funnel_days:
-                    cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (?, ?, 0)',
+                    cursor.execute('INSERT INTO funnel_status (user_id, day_number, sent) VALUES (%s, %s, 0)',
                                  (user_id, day))
 
                 importados += 1
@@ -444,6 +493,6 @@ def import_old_contacts(contact_ids, funnel_days=None):
 
     cursor.execute('SELECT COUNT(*) FROM users')
     total = cursor.fetchone()[0]
-    conn.close()
+    release_connection(conn)
 
     return importados, ya_existian, total

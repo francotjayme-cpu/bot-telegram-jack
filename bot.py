@@ -6,7 +6,6 @@ Versión Optimizada y Limpia
 
 import os
 import logging
-import sqlite3
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
@@ -21,7 +20,8 @@ from database import (
     init_database, register_user, log_interaction, update_user_segment,
     get_referidos_count, get_user_stats, get_all_user_ids, export_contacts_to_csv,
     get_daily_content, update_content_sent, add_daily_content, get_content_count,
-    get_random_content, get_users_for_funnel, mark_funnel_sent, import_old_contacts
+    get_random_content, get_users_for_funnel, mark_funnel_sent, import_old_contacts,
+    list_content, delete_content, delete_all_content
 )
 
 # Importar configuración (si usás archivo separado, sino usa las variables de abajo)
@@ -502,85 +502,68 @@ async def list_content_command(update: Update, context: ContextTypes.DEFAULT_TYP
     """Lista contenido"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, sent_count FROM daily_content ORDER BY id LIMIT 10')
-    content = cursor.fetchall()
-    conn.close()
-    
+
+    content = list_content(10)
+
     if not content:
         await update.message.reply_text("❌ Nenhum conteúdo.")
         return
-    
+
     msg = "📸 *CONTEÚDO*\n\n"
     for c in content:
         msg += f"ID: {c[0]} | Enviado: {c[1]}x\n"
-    
+
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 async def delete_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Elimina contenido por ID"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
+
     if not context.args:
         await update.message.reply_text("❌ Uso: /delcontent [ID]")
         return
-    
+
     content_id = context.args[0]
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM daily_content WHERE id = ?', (content_id,))
-    conn.commit()
-    conn.close()
-    
+    delete_content(content_id)
+
     await update.message.reply_text(f"✅ Deletado: {content_id}")
 
 async def delete_all_content_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Elimina TODO el contenido"""
     if str(update.effective_user.id) != ADMIN_CHAT_ID:
         return
-    
-    conn = sqlite3.connect('bot_database.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM daily_content')
-    count = cursor.fetchone()[0]
-    cursor.execute('DELETE FROM daily_content')
-    conn.commit()
-    conn.close()
-    
+
+    count = delete_all_content()
+
     await update.message.reply_text(f"🗑️ Deletados: {count} itens")
 
 # ==================== BACKUP AUTOMÁTICO ====================
 
 async def backup_database(context: ContextTypes.DEFAULT_TYPE):
-    """Hace backup de la BD y la envía al admin"""
+    """Hace backup de la BD (exporta a CSV) y la envía al admin"""
     try:
-        import shutil
-        from datetime import datetime
-        
-        # Copiar BD
+        # Exportar a CSV
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_name = f'backup_bot_{timestamp}.db'
-        shutil.copy('bot_database.db', backup_name)
-        
+        backup_name = f'backup_contacts_{timestamp}.csv'
+
+        filename, total = export_contacts_to_csv(backup_name)
+
         # Enviar al admin
         with open(backup_name, 'rb') as f:
             await context.bot.send_document(
                 chat_id=ADMIN_CHAT_ID,
                 document=f,
                 filename=backup_name,
-                caption=f"📦 *Backup Automático*\n\n⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n✅ Base de dados salva!",
+                caption=f"📦 *Backup Automático*\n\n📊 Contactos: {total}\n⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n✅ Base de datos PostgreSQL exportada!",
                 parse_mode='Markdown'
             )
-        
-        # Eliminar archivo local para no llenar espacio
-        import os
+
+        # Eliminar archivo local
         os.remove(backup_name)
-        
-        logger.info(f"✅ Backup enviado: {backup_name}")
-        
+
+        logger.info(f"✅ Backup enviado: {backup_name} ({total} contactos)")
+
     except Exception as e:
         logger.error(f"❌ Error en backup: {e}")
         try:
