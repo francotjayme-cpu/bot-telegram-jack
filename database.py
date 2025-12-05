@@ -1,8 +1,7 @@
 """
 DATABASE MANAGER - BOT TELEGRAM JACK LOPPES
 ===========================================
-Todas las funciones de base de datos centralizadas
-Versión PostgreSQL para Render
+Versión Supabase - Base de datos permanente
 """
 
 import os
@@ -14,33 +13,41 @@ import csv
 
 logger = logging.getLogger(__name__)
 
-# URL de conexión a PostgreSQL
-# Render configura DATABASE_URL automáticamente cuando vinculas la BD
+# URL de Supabase (PERMANENTE - no expira)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://bot_database_y9yi_user:EmbO4B57YprIkUFyRirxB73etmUdwPG2@dpg-d4gb0vmfu37c73chp9qg-a.oregon-postgres.render.com/bot_database_y9yi"
+    "postgresql://postgres:Francotomasjayme610600%21@db.myjntjxmewkolndqlwgv.supabase.co:5432/postgres"
 )
 
-# Pool de conexiones para mejor rendimiento
+# Pool de conexiones
 connection_pool = None
 
 def get_connection():
     """Obtiene una conexión del pool"""
     global connection_pool
-    if connection_pool is None:
+    try:
+        if connection_pool is None:
+            connection_pool = psycopg2.pool.SimpleConnectionPool(1, 10, DATABASE_URL)
+        return connection_pool.getconn()
+    except Exception as e:
+        logger.error(f"Error conectando a BD: {e}")
+        # Intentar reconectar
         connection_pool = psycopg2.pool.SimpleConnectionPool(1, 10, DATABASE_URL)
-    return connection_pool.getconn()
+        return connection_pool.getconn()
 
 def release_connection(conn):
     """Devuelve la conexión al pool"""
     global connection_pool
-    if connection_pool:
-        connection_pool.putconn(conn)
+    if connection_pool and conn:
+        try:
+            connection_pool.putconn(conn)
+        except:
+            pass
 
 # ==================== INICIALIZACIÓN ====================
 
 def init_database():
-    """Inicializa la base de datos PostgreSQL con todas las tablas necesarias"""
+    """Inicializa la base de datos con todas las tablas"""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -106,7 +113,7 @@ def init_database():
 
     conn.commit()
     release_connection(conn)
-    logger.info("✅ Base de datos PostgreSQL inicializada")
+    logger.info("✅ Base de datos Supabase inicializada correctamente")
 
 # ==================== GESTIÓN DE USUARIOS ====================
 
@@ -139,7 +146,7 @@ def register_user(user_id, username, first_name, last_name, referido_por=None, f
                          (referido_por, user_id, now))
             cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = %s', (referido_por,))
 
-        logger.info(f"✅ Nuevo usuario: {first_name} ({user_id})")
+        logger.info(f"✅ Nuevo usuario registrado: {first_name} ({user_id})")
     else:
         cursor.execute('''
             UPDATE users
@@ -173,14 +180,17 @@ def update_user_segment(user_id, inactive_days=3, lost_days=7):
         release_connection(conn)
         return
 
-    reg_date = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
-    last_int = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
-    now = datetime.now()
+    try:
+        reg_date = datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S')
+        last_int = datetime.strptime(result[1], '%Y-%m-%d %H:%M:%S')
+    except:
+        release_connection(conn)
+        return
 
+    now = datetime.now()
     days_since_reg = (now - reg_date).days
     days_since_int = (now - last_int).days
 
-    # Determinar segmento
     if days_since_int > lost_days:
         segment = 'perdido'
     elif days_since_int > inactive_days:
@@ -307,15 +317,11 @@ def export_contacts_to_csv(filename='contacts_export.csv'):
 
     with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
-
-        # Encabezados
         writer.writerow([
             'User ID', 'Username', 'Nombre', 'Apellido',
             'Fecha Registro', 'Última Interacción', 'Total Interacciones',
             'Puntos Referido', 'Segmento'
         ])
-
-        # Datos
         for user in users:
             writer.writerow(user)
 
@@ -336,7 +342,6 @@ def get_daily_content():
     ''')
     content = cursor.fetchone()
     release_connection(conn)
-
     return content
 
 def update_content_sent(content_id):
@@ -361,7 +366,6 @@ def add_daily_content(image_url, caption):
     cursor.execute('SELECT COUNT(*) FROM daily_content')
     total = cursor.fetchone()[0]
     release_connection(conn)
-
     return total
 
 def get_content_count():
@@ -427,17 +431,20 @@ def get_users_for_funnel(funnel_days=None):
     pending_funnel = []
 
     for user_id, reg_date in users:
-        reg_datetime = datetime.strptime(reg_date, '%Y-%m-%d %H:%M:%S')
-        days_since_reg = (now - reg_datetime).days
+        try:
+            reg_datetime = datetime.strptime(reg_date, '%Y-%m-%d %H:%M:%S')
+            days_since_reg = (now - reg_datetime).days
 
-        for day in funnel_days:
-            if days_since_reg >= day:
-                cursor.execute('SELECT sent FROM funnel_status WHERE user_id = %s AND day_number = %s',
-                             (user_id, day))
-                result = cursor.fetchone()
+            for day in funnel_days:
+                if days_since_reg >= day:
+                    cursor.execute('SELECT sent FROM funnel_status WHERE user_id = %s AND day_number = %s',
+                                 (user_id, day))
+                    result = cursor.fetchone()
 
-                if result and not result[0]:
-                    pending_funnel.append((user_id, day))
+                    if result and not result[0]:
+                        pending_funnel.append((user_id, day))
+        except:
+            continue
 
     release_connection(conn)
     return pending_funnel
