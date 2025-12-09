@@ -2,6 +2,7 @@
 DATABASE MANAGER - BOT TELEGRAM JACK LOPPES
 ===========================================
 Versión Supabase - Base de datos permanente
+CORREGIDO: Agregado flag de migración y diagnóstico
 """
 
 import os
@@ -111,6 +112,15 @@ def init_database():
         )
     ''')
 
+    # NUEVA TABLA: Configuración del bot (para flags)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bot_config (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TEXT
+        )
+    ''')
+
     conn.commit()
     release_connection(conn)
     logger.info("✅ Base de datos Supabase inicializada correctamente")
@@ -146,7 +156,8 @@ def register_user(user_id, username, first_name, last_name, referido_por=None, f
                          (referido_por, user_id, now))
             cursor.execute('UPDATE users SET puntos_referido = puntos_referido + 1 WHERE user_id = %s', (referido_por,))
 
-        logger.info(f"✅ Nuevo usuario registrado: {first_name} ({user_id})")
+        # LOG IMPORTANTE: Confirmar que se guardó
+        logger.info(f"✅ NUEVO USUARIO GUARDADO EN SUPABASE: {first_name} ({user_id})")
     else:
         cursor.execute('''
             UPDATE users
@@ -245,13 +256,12 @@ def get_user_stats():
     cursor.execute('''
         SELECT action_type, COUNT(*) as count
         FROM interactions
-        WHERE action_type LIKE 'button_%%'
         GROUP BY action_type
         ORDER BY count DESC
         LIMIT 1
     ''')
     popular = cursor.fetchone()
-    popular_action = popular[0].replace('button_', '') if popular else "N/A"
+    popular_action = popular[0] if popular else 'N/A'
     popular_count = popular[1] if popular else 0
 
     cursor.execute('SELECT COUNT(*) FROM interactions')
@@ -460,6 +470,50 @@ def mark_funnel_sent(user_id, day_number):
     conn.commit()
     release_connection(conn)
 
+# ==================== FLAGS DE CONFIGURACIÓN (NUEVO) ====================
+
+def get_config(key, default=None):
+    """Obtiene un valor de configuración de la BD"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT value FROM bot_config WHERE key = %s', (key,))
+        result = cursor.fetchone()
+        release_connection(conn)
+        return result[0] if result else default
+    except Exception as e:
+        logger.error(f"Error obteniendo config {key}: {e}")
+        return default
+
+def set_config(key, value):
+    """Guarda un valor de configuración en la BD"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        cursor.execute('''
+            INSERT INTO bot_config (key, value, updated_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = %s
+        ''', (key, value, now, value, now))
+        
+        conn.commit()
+        release_connection(conn)
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando config {key}: {e}")
+        return False
+
+def check_initial_migration_done():
+    """Verifica si ya se hizo la migración inicial de contacts_data.py"""
+    return get_config('initial_migration_done') == 'true'
+
+def mark_initial_migration_done():
+    """Marca que la migración inicial ya se completó"""
+    set_config('initial_migration_done', 'true')
+    logger.info("✅ Migración inicial marcada como completada")
+
 # ==================== IMPORTACIÓN ====================
 
 def import_old_contacts(contact_ids, funnel_days=None):
@@ -503,3 +557,51 @@ def import_old_contacts(contact_ids, funnel_days=None):
     release_connection(conn)
 
     return importados, ya_existian, total
+
+# ==================== DIAGNÓSTICO (NUEVO) ====================
+
+def get_database_info():
+    """Obtiene información de diagnóstico de la BD"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Total usuarios
+        cursor.execute('SELECT COUNT(*) FROM users')
+        total_users = cursor.fetchone()[0]
+        
+        # Usuarios de hoy
+        today = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute('SELECT COUNT(*) FROM users WHERE registration_date LIKE %s', (f'{today}%',))
+        users_today = cursor.fetchone()[0]
+        
+        # Último usuario registrado
+        cursor.execute('SELECT first_name, registration_date FROM users ORDER BY registration_date DESC LIMIT 1')
+        last_user = cursor.fetchone()
+        
+        # Verificar flag de migración
+        cursor.execute('SELECT value FROM bot_config WHERE key = %s', ('initial_migration_done',))
+        migration_result = cursor.fetchone()
+        migration_done = migration_result[0] if migration_result else 'no'
+        
+        release_connection(conn)
+        
+        return {
+            'total_users': total_users,
+            'users_today': users_today,
+            'last_user': last_user,
+            'migration_done': migration_done,
+            'db_type': 'Supabase' if 'supabase' in DATABASE_URL.lower() else 'PostgreSQL',
+            'connected': True
+        }
+    except Exception as e:
+        logger.error(f"Error en diagnóstico: {e}")
+        return {
+            'total_users': 0,
+            'users_today': 0,
+            'last_user': None,
+            'migration_done': 'unknown',
+            'db_type': 'Error',
+            'connected': False,
+            'error': str(e)
+        }
