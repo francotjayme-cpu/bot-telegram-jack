@@ -717,6 +717,87 @@ def run_http_server():
     logger.info(f"✅ HTTP Server: puerto {port}")
     server.serve_forever()
 
+# ==================== AUTO-IMPORTACIÓN ====================
+
+def auto_import_on_startup():
+    """Importa contactos y contenido automáticamente si las tablas están vacías"""
+    try:
+        # Verificar si hay usuarios en la BD
+        from database import get_user_stats, get_content_count
+
+        stats = get_user_stats()
+        content_count = get_content_count()
+
+        # Importar contactos si está vacío
+        if stats['total_users'] == 0:
+            logger.info("📥 Base de datos vacía. Importando contactos automáticamente...")
+            try:
+                from contacts_data import OLD_CONTACTS
+                from database import import_old_contacts
+
+                importados, ya_existian, total = import_old_contacts(OLD_CONTACTS, FUNNEL_DAYS)
+                logger.info(f"✅ Auto-importación: {importados} contactos importados (Total: {total})")
+            except Exception as e:
+                logger.error(f"❌ Error en auto-importación de contactos: {e}")
+        else:
+            logger.info(f"✅ Base de datos ya tiene {stats['total_users']} usuarios")
+
+        # Importar contenido si está vacío
+        if content_count == 0:
+            logger.info("📥 Sin contenido diario. Importando fotos automáticamente...")
+            try:
+                direct_urls = [
+                    "https://i.ibb.co/SXvDNtvY/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-0b1cbd92.jpg",
+                    "https://i.ibb.co/5gfKzpjm/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-99293d9a.jpg",
+                    "https://i.ibb.co/Rp6ct9sY/IMG-20251103-WA0123.jpg",
+                    "https://i.ibb.co/wGwMM8M/IMG-20251115-WA0083.jpg",
+                    "https://i.ibb.co/R4sr42Md/IMG-20251115-WA0084.jpg",
+                    "https://i.ibb.co/gbYcgz80/IMG-20251115-WA0085.jpg",
+                    "https://i.ibb.co/ksCYNw7k/IMG-20251115-WA0087.jpg",
+                    "https://i.ibb.co/G6NmsW5/IMG-20251116-WA0134.jpg",
+                    "https://i.ibb.co/WNPkrvHV/IMG-20251116-WA0135.jpg",
+                    "https://i.ibb.co/RGsXvkfv/IMG-20251116-WA0136.jpg",
+                    "https://i.ibb.co/M5hS006d/IMG-20251116-WA0137.jpg",
+                    "https://i.ibb.co/k6rKMmxB/IMG-20251116-WA0138.jpg",
+                    "https://i.ibb.co/V0tzpjWJ/IMG-20251116-WA0139.jpg",
+                    "https://i.ibb.co/Mk1WtCdX/IMG-20251116-WA0140.jpg",
+                    "https://i.ibb.co/5xG1bF0R/IMG-20251116-WA0141.jpg",
+                    "https://i.ibb.co/YBdCxDz2/IMG-20251116-WA0142.jpg",
+                    "https://i.ibb.co/mFSfHzc3/IMG-20251116-WA0143.jpg",
+                    "https://i.ibb.co/xSmwWJJ2/IMG-20251116-WA0144.jpg",
+                    "https://i.ibb.co/Nd5kt0bg/IMG-20251116-WA0145.jpg",
+                    "https://i.ibb.co/DJHy3C4/IMG-20251116-WA0146.jpg",
+                    "https://i.ibb.co/4RbQxqcG/IMG-20251116-WA0147.jpg",
+                    "https://i.ibb.co/0yLsgCRp/IMG-20251116-WA0148.jpg",
+                    "https://i.ibb.co/dsfbVQms/IMG-20251116-WA0149.jpg",
+                    "https://i.ibb.co/Mxzm5Tnc/IMG-20251116-WA0150.jpg",
+                    "https://i.ibb.co/vxhYGVWB/IMG-20251116-WA0151.jpg",
+                    "https://i.ibb.co/Q3pJjwLw/IMG-20251116-WA0152.jpg",
+                    "https://i.ibb.co/twH5F3jn/IMG-20251116-WA0153.jpg",
+                    "https://i.ibb.co/DgRMN03B/IMG-20251116-WA0154.jpg",
+                    "https://i.ibb.co/zWvTrkD2/IMG-20251116-WA0155.jpg",
+                    "https://i.ibb.co/BH2g2bZN/IMG-20251116-WA0156.jpg",
+                    "https://i.ibb.co/93mGyMmS/IMG-20251116-WA0157.jpg",
+                    "https://i.ibb.co/whdT8MMr/IMG-20251116-WA0158.jpg",
+                    "https://i.ibb.co/tMqgZ8s4/IMG-20251116-WA0159.jpg"
+                ]
+
+                from config import DAILY_CAPTIONS
+                from database import add_daily_content
+
+                for url in direct_urls:
+                    caption = random.choice(DAILY_CAPTIONS)
+                    add_daily_content(url, caption)
+
+                logger.info(f"✅ Auto-importación: {len(direct_urls)} fotos importadas")
+            except Exception as e:
+                logger.error(f"❌ Error en auto-importación de contenido: {e}")
+        else:
+            logger.info(f"✅ Ya hay {content_count} fotos de contenido diario")
+
+    except Exception as e:
+        logger.error(f"❌ Error en auto-importación: {e}")
+
 # ==================== TAREAS AUTOMÁTICAS ====================
 
 async def scheduled_tasks(application):
@@ -741,9 +822,13 @@ async def scheduled_tasks(application):
 def main():
     """Inicia el bot"""
     logger.info("🚀 Iniciando Bot Jack Loppes...")
-    
+
     # Inicializar BD
     init_database()
+
+    # Auto-importación inteligente al iniciar
+    auto_import_on_startup()
+
     init_daily_content()
     
     # Servidor HTTP
