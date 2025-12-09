@@ -6,8 +6,8 @@ CORREGIDO: Agregado flag de migración y diagnóstico
 """
 
 import os
-import psycopg2
-from psycopg2 import pool
+import psycopg
+from psycopg_pool import ConnectionPool
 import logging
 from datetime import datetime, timedelta
 import csv
