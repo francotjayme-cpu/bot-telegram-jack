@@ -19,10 +19,9 @@ from psycopg_pool import ConnectionPool
 logger = logging.getLogger(__name__)
 
 # URL de Supabase (PERMANENTE - no expira)
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:Francotomasjayme610600%21@db.myjntjxmewkolndqlwgv.supabase.co:5432/postgres"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise Exception("❌ DATABASE_URL no está configurada en las variables de entorno")
 
 # Pool de conexiones (psycopg3)
 connection_pool = None
