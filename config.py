@@ -2,44 +2,52 @@
 CONFIGURACIÓN DEL BOT DE TELEGRAM - JACK LOPPES
 ================================================
 
-Este archivo contiene toda la configuración del bot.
-Editá aquí para cambiar textos, horarios, etc.
+Las credenciales se cargan desde variables de entorno.
+En desarrollo: usar archivo .env
+En producción (Render): configurar en el dashboard
 """
 
 import os
 
-# ==================== CREDENCIALES ====================
-# Obtiene valores de variables de entorno o usa valores por defecto
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7519505004:AAFUmyDOpcGYW9yaAov6HlrgOhYWZ5X5mqo")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "6368408762")
-BOT_USERNAME = os.getenv("BOT_USERNAME", "JackLoppesBot")
+# Cargar .env si existe (para desarrollo local)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # En producción no necesitamos python-dotenv
 
-# File ID de la imagen de bienvenida (método más confiable)
-IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA", "AgACAgEAAxkBAAE98RdpGrNPkBPmP7N9CjA0tIg4DGGMngACSwtrG_9m0UT4aLfg05fqLgEAAwIAA3kAAzYE")
+# ==================== CREDENCIALES (desde variables de entorno) ====================
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+BOT_USERNAME = os.getenv("BOT_USERNAME")
+IMAGEN_BIENVENIDA = os.getenv("IMAGEN_BIENVENIDA")
+
+# Validar que las variables críticas existan
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN no está configurado en las variables de entorno")
+if not ADMIN_CHAT_ID:
+    raise ValueError("❌ ADMIN_CHAT_ID no está configurado en las variables de entorno")
 
 # ==================== SISTEMA DE REFERIDOS ====================
-REFERIDOS_NECESARIOS = 5  # Cuántos referidos necesita para ganar el premio
+REFERIDOS_NECESARIOS = 5
 PREMIO_REFERIDO = "Acesso especial a conteúdo exclusivo"
 
 # ==================== FUNNEL DE CONVERSIÓN ====================
-# Días en los que se envían mensajes automáticos (desde el registro)
-FUNNEL_DAYS = [0, 1, 3, 5, 7]  # Funnel de 7 días para ventas emocionales
+FUNNEL_DAYS = [0, 1, 3, 5, 7]
 
 # ==================== SEGMENTACIÓN ====================
-INACTIVE_DAYS = 3  # Días sin interactuar para marcar como "inactivo"
-LOST_DAYS = 7      # Días sin interactuar para marcar como "perdido"
+INACTIVE_DAYS = 3
+LOST_DAYS = 7
 
 # ==================== CONTENIDO DIARIO ====================
-# Horarios posibles para envío automático (GMT-3 Brasil)
-DAILY_CONTENT_HOURS = [21, 22, 23, 0, 1]  # 21:00 a 01:00
+DAILY_CONTENT_HOURS = [21, 22, 23, 0, 1]
 
 # ==================== BACKUP AUTOMÁTICO ====================
-BACKUP_INTERVAL_HOURS = 6  # Cada cuántas horas hacer backup de la BD
-GITHUB_BACKUP_ENABLED = True  # Activar backup automático a GitHub
+BACKUP_INTERVAL_HOURS = 6
+GITHUB_BACKUP_ENABLED = True
 
 # ==================== TEXTOS DEL BOT ====================
 
-# Menú principal
 TEXTO_BIENVENIDA = """✨ *Oi, meu bem!* ✨
 
 Que bom te ter aqui no meu cantinho especial 💛
@@ -52,7 +60,6 @@ Como ter uma namorada virtual só pra você 💕
 
 👇 *Escolha o que você quer conhecer:*"""
 
-# Privacy VIP
 TEXTO_PRIVACY_VIP = """💛 *MEU CANTINHO VIP* 💛
 
 Oi, meu amor...
@@ -75,7 +82,6 @@ https://privacy.com.br/profile/jackloppes
 
 💛 _Te espero lá dentro, meu amor_"""
 
-# Privacy FREE
 TEXTO_PRIVACY_FREE = """💙 *CONHECE MEU LADO FREE* 💙
 
 Oi, meu bem!
@@ -94,7 +100,6 @@ https://privacy.com.br/profile/jackloppesfree
 
 _Tô te esperando lá! 😘_"""
 
-# Beacons
 TEXTO_BEACONS = """🌐 ME ENCONTRA EM TODOS OS LUGARES 🌐
 
 Oi, meu amor!
@@ -114,7 +119,6 @@ https://beacons.ai/jaqueline_loppes
 
 Me segue em todas! Fico feliz quando vejo você por lá 😊"""
 
-# Canal Telegram
 TEXTO_CANAL = """📣 *MEU CANAL OFICIAL* 📣
 
 Meu bem! 💛
@@ -132,7 +136,6 @@ https://t.me/jackloppesbr
 
 💕 _Te vejo lá dentro!_"""
 
-# OnlyFans
 TEXTO_ONLYFANS = """🔥 *MEU ONLYFANS* 🔥
 
 Oi, meu amor...
@@ -152,7 +155,6 @@ https://onlyfans.com/jackloppess
 
 💋 _Tô te esperando, meu bem_"""
 
-# Sobre mim
 TEXTO_SOBRE_MIM = """⭐ *UM POUCO SOBRE MIM* ⭐
 
 Oi! Prazer, eu sou a Jack Loppes 💛
@@ -179,7 +181,6 @@ Aqui você pode:
 
 _Fico feliz que você tá aqui_ 😊"""
 
-# Comando /help
 TEXTO_HELP = """❓ *AJUDA* ❓
 
 Oi, meu bem! Aqui estão os comandos disponíveis:
@@ -306,7 +307,6 @@ Não é só sobre conteúdo, meu amor. É sobre ter uma conexão real 💕
 _Se não vier, vou entender... Mas vou sentir muito a sua falta_ 😔💛"""
 }
 
-# Mensajes automáticos por segmento
 MENSAJE_INACTIVO = """Oi, meu bem... 💛
 
 Faz uns dias que não te vejo por aqui...
