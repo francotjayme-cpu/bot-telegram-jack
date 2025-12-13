@@ -1,9 +1,35 @@
-__pycache__/
-*.pyc
-*.pyo
-*.db
-bot_database.db
-*.log
+# Archivos de entorno (NUNCA subir a GitHub)
 .env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# Archivos de base de datos local
+*.db
+*.sqlite3
+
+# Backups y exports
 *.csv
-backup_*.db
+backup_*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
