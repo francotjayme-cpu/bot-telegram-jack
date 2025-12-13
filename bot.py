@@ -2,6 +2,7 @@
 BOT DE TELEGRAM - JACK LOPPES
 Estrategia Vainilla - Novia Virtual
 Versión Corregida - Persistencia Real con Supabase
++ Importación de fotos desde Telegram
 """
 
 import os
@@ -57,7 +58,7 @@ def init_daily_content():
     count = get_content_count()
 
     if count == 0:
-        logger.info("⚠️ No hay contenido diario. Usa /importcontent para agregar fotos.")
+        logger.info("⚠️ No hay contenido diario. Usa /importfotos para agregar fotos.")
     else:
         logger.info(f"✅ Contenido diario: {count} fotos disponibles")
 
@@ -377,6 +378,112 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif query.data == 'admin_close':
         await query.message.delete()
+
+# ==================== IMPORTAR FOTOS DESDE TELEGRAM (NUEVO) ====================
+
+async def import_fotos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Activa el modo de importación de fotos"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    # Activar modo receptivo
+    context.user_data['importing_photos'] = True
+    context.user_data['imported_count'] = 0
+    
+    await update.message.reply_text(
+        "📸 *MODO IMPORTACIÓN ACTIVADO*\n\n"
+        "Ahora envíame las fotos que quieras agregar al contenido diario.\n\n"
+        "💡 *Tips:*\n"
+        "• Podés enviar varias fotos a la vez\n"
+        "• Cada foto se guardará con un caption aleatorio\n"
+        "• Cuando termines, enviá /listo\n\n"
+        "⏳ _Esperando fotos..._",
+        parse_mode='Markdown'
+    )
+
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja las fotos recibidas"""
+    user = update.effective_user
+    
+    # Solo admin puede importar
+    if str(user.id) != ADMIN_CHAT_ID:
+        return
+    
+    # Verificar si está en modo importación
+    if not context.user_data.get('importing_photos', False):
+        return
+    
+    try:
+        # Obtener la foto de mayor resolución
+        photo = update.message.photo[-1]  # La última es la más grande
+        file_id = photo.file_id
+        
+        # Seleccionar caption aleatorio
+        from config import DAILY_CAPTIONS
+        caption = random.choice(DAILY_CAPTIONS)
+        
+        # Guardar en la base de datos
+        total = add_daily_content(file_id, caption)
+        
+        # Actualizar contador
+        context.user_data['imported_count'] = context.user_data.get('imported_count', 0) + 1
+        count = context.user_data['imported_count']
+        
+        # Confirmar cada foto
+        await update.message.reply_text(
+            f"✅ Foto #{count} guardada\n"
+            f"📊 Total en BD: {total}",
+            reply_to_message_id=update.message.message_id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error importando foto: {e}")
+        await update.message.reply_text(f"❌ Error: {e}")
+
+async def listo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Finaliza el modo de importación de fotos"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    if not context.user_data.get('importing_photos', False):
+        await update.message.reply_text("ℹ️ No estás en modo importación. Usa /importfotos para comenzar.")
+        return
+    
+    # Obtener cantidad importada
+    count = context.user_data.get('imported_count', 0)
+    total = get_content_count()
+    
+    # Desactivar modo receptivo
+    context.user_data['importing_photos'] = False
+    context.user_data['imported_count'] = 0
+    
+    await update.message.reply_text(
+        f"🎉 *IMPORTACIÓN COMPLETA*\n\n"
+        f"📸 Fotos importadas: {count}\n"
+        f"📊 Total contenido: {total}\n\n"
+        f"✅ Modo importación desactivado.",
+        parse_mode='Markdown'
+    )
+
+async def cancel_import_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancela el modo de importación"""
+    if str(update.effective_user.id) != ADMIN_CHAT_ID:
+        return
+    
+    if context.user_data.get('importing_photos', False):
+        count = context.user_data.get('imported_count', 0)
+        context.user_data['importing_photos'] = False
+        context.user_data['imported_count'] = 0
+        
+        await update.message.reply_text(
+            f"❌ Importación cancelada.\n"
+            f"📸 Fotos que sí se guardaron: {count}",
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text("ℹ️ No estás en modo importación.")
+
+# ==================== HANDLERS DE MENSAJES ====================
 
 async def mensaje_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja mensajes de texto"""
@@ -811,24 +918,7 @@ def smart_startup():
 
         # IMPORTAR CONTENIDO: Solo si está vacío
         if content_count == 0:
-            logger.info("📥 Sin contenido diario. Importando fotos...")
-            try:
-                direct_urls = [
-                    "https://i.ibb.co/SXvDNtvY/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-0b1cbd92.jpg",
-                    "https://i.ibb.co/5gfKzpjm/Imagen-de-Whats-App-2025-11-05-a-las-13-45-17-99293d9a.jpg",
-                    "https://i.ibb.co/Rp6ct9sY/IMG-20251103-WA0123.jpg",
-                    # ... (resto de URLs igual que antes)
-                ]
-
-                from config import DAILY_CAPTIONS
-
-                for url in direct_urls[:5]:  # Solo primeras 5 para startup rápido
-                    caption = random.choice(DAILY_CAPTIONS)
-                    add_daily_content(url, caption)
-
-                logger.info(f"✅ Contenido inicial importado")
-            except Exception as e:
-                logger.error(f"❌ Error importando contenido: {e}")
+            logger.info("📥 Sin contenido diario. Usa /importfotos para agregar fotos.")
         else:
             logger.info(f"✅ Ya hay {content_count} fotos de contenido diario")
 
@@ -886,7 +976,15 @@ def main():
     application.add_handler(CommandHandler("senddaily", send_daily_now_command))
     application.add_handler(CommandHandler("exportcontacts", export_contacts_command))
     application.add_handler(CommandHandler("backup", backup_manual_command))
-    application.add_handler(CommandHandler("checkdb", check_db_command))  # NUEVO
+    application.add_handler(CommandHandler("checkdb", check_db_command))
+    
+    # NUEVOS COMANDOS - Importar fotos desde Telegram
+    application.add_handler(CommandHandler("importfotos", import_fotos_command))
+    application.add_handler(CommandHandler("listo", listo_command))
+    application.add_handler(CommandHandler("cancelimport", cancel_import_command))
+    
+    # Handlers de mensajes
+    application.add_handler(MessageHandler(filters.PHOTO, photo_handler))  # FOTOS primero
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mensaje_handler))
     
@@ -901,6 +999,7 @@ def main():
     logger.info("📸 Contenido diario: ACTIVO")
     logger.info("💾 Backups automáticos (cada 6h): ACTIVO")
     logger.info("🔍 Usa /checkdb para verificar estado de BD")
+    logger.info("📷 Usa /importfotos para importar fotos desde Telegram")
     logger.info("=" * 50)
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
