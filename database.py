@@ -18,10 +18,17 @@ from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
-# URL de Supabase (PERMANENTE - no expira)
+# Cargar .env si existe (para desarrollo local)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# URL de Supabase desde variable de entorno (SEGURO)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise Exception("❌ DATABASE_URL no está configurada en las variables de entorno")
+    raise ValueError("❌ DATABASE_URL no está configurado en las variables de entorno")
 
 # Pool de conexiones (psycopg3)
 connection_pool = None
